@@ -62,9 +62,7 @@ def detect_completion_context(
         var_name, prefix = m.group(1), m.group(2)
         var_type = bindings.get(var_name)
         if var_type and var_type.is_document:
-            return CompletionInfo(
-                CompletionContext.OBJECT_TYPE_ADD_ARG, var_name, prefix=prefix
-            )
+            return CompletionInfo(CompletionContext.OBJECT_TYPE_ADD_ARG, var_name, prefix=prefix)
 
     # Pattern 3: var["ObjType"]["prefix  (chained subscript — object name, skip)
     m = re.search(r"(\w+)\[[\"']([\w:]+)[\"']\]\[[\"']([^\"']*)$", text)
@@ -174,9 +172,7 @@ def _keyword_arg_completions(
     return items
 
 
-def _make_field_item(
-    python_name: str, obj_type: str, schema: SchemaCache
-) -> types.CompletionItem:
+def _make_field_item(python_name: str, obj_type: str, schema: SchemaCache) -> types.CompletionItem:
     """Create a CompletionItem for a single field with inline docs."""
     idf_name = schema.get_field_idf_name(obj_type, python_name)
     detail_parts: list[str] = []

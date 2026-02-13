@@ -54,9 +54,7 @@ class TestContextDetection:
 
     def test_keyword_arg(self) -> None:
         bindings = {"doc": InferredType(IdfKitType.DOCUMENT)}
-        info = detect_completion_context(
-            'doc.add("Zone", "Office", x_or', 30, bindings
-        )
+        info = detect_completion_context('doc.add("Zone", "Office", x_or', 30, bindings)
         assert info.context == CompletionContext.FIELD_KEYWORD_ARG
         assert info.object_type == "Zone"
         assert info.prefix == "x_or"
@@ -82,43 +80,33 @@ class TestItemGeneration:
     """Tests for build_completion_items using a real schema."""
 
     def test_object_type_matches(self, schema: SchemaCache) -> None:
-        info = CompletionInfo(
-            CompletionContext.OBJECT_TYPE_SUBSCRIPT, prefix="Zone"
-        )
+        info = CompletionInfo(CompletionContext.OBJECT_TYPE_SUBSCRIPT, prefix="Zone")
         items = build_completion_items(info, schema)
         labels = [i.label for i in items]
         assert "Zone" in labels
         # Should also match "ZoneHVAC:..." types
-        assert any(l.startswith("ZoneHVAC") for l in labels)
+        assert any(label.startswith("ZoneHVAC") for label in labels)
 
     def test_object_type_empty_prefix(self, schema: SchemaCache) -> None:
-        info = CompletionInfo(
-            CompletionContext.OBJECT_TYPE_SUBSCRIPT, prefix=""
-        )
+        info = CompletionInfo(CompletionContext.OBJECT_TYPE_SUBSCRIPT, prefix="")
         items = build_completion_items(info, schema)
         # All object types returned
         assert len(items) == len(schema.object_types)
 
     def test_field_attribute_items(self, schema: SchemaCache) -> None:
-        info = CompletionInfo(
-            CompletionContext.FIELD_ATTRIBUTE, object_type="Zone", prefix="x"
-        )
+        info = CompletionInfo(CompletionContext.FIELD_ATTRIBUTE, object_type="Zone", prefix="x")
         items = build_completion_items(info, schema)
         labels = [i.label for i in items]
         assert "x_origin" in labels
 
     def test_field_attribute_all(self, schema: SchemaCache) -> None:
-        info = CompletionInfo(
-            CompletionContext.FIELD_ATTRIBUTE, object_type="Zone", prefix=""
-        )
+        info = CompletionInfo(CompletionContext.FIELD_ATTRIBUTE, object_type="Zone", prefix="")
         items = build_completion_items(info, schema)
         # Zone has 12 fields per our earlier check
         assert len(items) > 5
 
     def test_keyword_arg_items(self, schema: SchemaCache) -> None:
-        info = CompletionInfo(
-            CompletionContext.FIELD_KEYWORD_ARG, object_type="Zone", prefix=""
-        )
+        info = CompletionInfo(CompletionContext.FIELD_KEYWORD_ARG, object_type="Zone", prefix="")
         items = build_completion_items(info, schema)
         assert len(items) > 0
         # All items should end with = in insert_text

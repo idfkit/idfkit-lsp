@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from idfkit_lsp.analyzer import IdfKitType, InferredType
-from idfkit_lsp.signature_help import build_signature_help, detect_add_call
 from idfkit_lsp.schema_cache import SchemaCache
+from idfkit_lsp.signature_help import build_signature_help, detect_add_call
 
 
 class TestDetectAddCall:

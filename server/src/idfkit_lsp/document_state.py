@@ -48,7 +48,10 @@ class DocumentStateManager:
         self._states[uri] = state
         log.info(
             "update: analysed %s v%d — idfkit=%s bindings=%d",
-            uri, version, has_import, len(bindings),
+            uri,
+            version,
+            has_import,
+            len(bindings),
         )
         return state
 

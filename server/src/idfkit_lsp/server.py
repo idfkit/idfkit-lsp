@@ -41,12 +41,11 @@ class _LspLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
-            msg_type = _LOG_LEVEL_TO_MESSAGE_TYPE.get(
-                record.levelno, types.MessageType.Log
-            )
-            self._ls.show_message_log(msg, msg_type)
+            msg_type = _LOG_LEVEL_TO_MESSAGE_TYPE.get(record.levelno, types.MessageType.Log)
+            self._ls.show_message_log(msg, msg_type)  # pyright: ignore[reportAttributeAccessIssue]
         except Exception:
             self.handleError(record)
+
 
 # These are initialised in the ``initialized`` handler once the client is ready.
 _schema: SchemaCache | None = None
@@ -90,7 +89,9 @@ def on_did_change(params: types.DidChangeTextDocumentParams) -> None:
     if _docs is None:
         return
     doc = server.workspace.get_text_document(params.text_document.uri)
-    log.debug("didChange uri=%s version=%s", params.text_document.uri, params.text_document.version)
+    log.debug(
+        "didChange uri=%s version=%s", params.text_document.uri, params.text_document.version
+    )
     _docs.update(
         params.text_document.uri,
         doc.source,
@@ -141,7 +142,10 @@ def on_completion(params: types.CompletionParams) -> types.CompletionList:
 
     log.info(
         "completion: ctx=%s obj_type=%s prefix=%r → %d items",
-        info.context.value, info.object_type, info.prefix, len(items),
+        info.context.value,
+        info.object_type,
+        info.prefix,
+        len(items),
     )
     return types.CompletionList(is_incomplete=False, items=items)
 

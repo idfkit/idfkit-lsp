@@ -31,9 +31,10 @@ zone.x_origin  # ← field attribute completion + hover docs
 
 ### Server
 
+Requires [uv](https://docs.astral.sh/uv/):
+
 ```bash
-cd server
-pip install -e ".[dev]"
+make install        # or: cd server && uv sync --extra dev
 ```
 
 ### Client
@@ -74,12 +75,29 @@ Use the **idfkit: Restart Language Server** command to reload after configuratio
 │       └── document_state.py  # Per-document state management
 ```
 
+## Development
+
+```bash
+make install            # install with uv
+make check              # run all checks (lint, format, typecheck, test)
+make fix                # auto-fix lint + format issues
+make pre-commit-install # install git pre-commit hooks
+```
+
+| Command | Description |
+|---|---|
+| `make lint` | Run ruff linter |
+| `make format` | Check formatting |
+| `make format-fix` | Auto-format code |
+| `make typecheck` | Run pyright |
+| `make test` | Run pytest |
+| `make check` | All of the above |
+
 ## Testing
 
 ```bash
-cd server
-pip install -e ".[dev]"
-pytest
+make test       # or: cd server && uv run pytest
+make test-v     # verbose output
 ```
 
 The test suite covers the analyzer, completion, hover, signature help, and end-to-end LSP integration.
