@@ -101,7 +101,7 @@ def lsp_server():
         [sys.executable, "-m", "idfkit_lsp"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
 
     # Initialize handshake
@@ -130,7 +130,11 @@ def lsp_server():
     _send_lsp(proc, "shutdown", {}, id=999)
     _read_response(proc, 999, timeout=5)
     _send_lsp(proc, "exit", {})
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def _open_doc(proc, uri: str, text: str, version: int = 1) -> None:
