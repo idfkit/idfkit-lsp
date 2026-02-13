@@ -8,7 +8,6 @@ from typing import Any
 
 from idfkit import LATEST_VERSION, get_schema
 from idfkit.introspection import (
-    FieldDescription,
     ObjectDescription,
     describe_object_type,
 )
@@ -25,14 +24,13 @@ class SchemaCache:
         self._schema: EpJSONSchema = get_schema(version)
         self._object_types: list[str] = self._schema.object_types
         # Lowercase → canonical mapping for case-insensitive matching
-        self._object_type_lower: dict[str, str] = {
-            ot.lower(): ot for ot in self._object_types
-        }
+        self._object_type_lower: dict[str, str] = {ot.lower(): ot for ot in self._object_types}
         # Lazy cache: obj_type → {python_name: idf_name}
         self._field_map_cache: dict[str, dict[str, str]] = {}
         log.info(
             "SchemaCache loaded: version=%s object_types=%d",
-            ".".join(str(v) for v in version), len(self._object_types),
+            ".".join(str(v) for v in version),
+            len(self._object_types),
         )
 
     @property
@@ -46,9 +44,7 @@ class SchemaCache:
         """Build and cache the python_name → idf_name mapping for an object type."""
         if obj_type not in self._field_map_cache:
             idf_names = self._schema.get_field_names(obj_type)
-            self._field_map_cache[obj_type] = {
-                to_python_name(name): name for name in idf_names
-            }
+            self._field_map_cache[obj_type] = {to_python_name(name): name for name in idf_names}
         return self._field_map_cache[obj_type]
 
     def get_field_python_names(self, obj_type: str) -> list[str]:

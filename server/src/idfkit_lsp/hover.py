@@ -89,11 +89,7 @@ def build_hover_content(
     if info.target == HoverTarget.OBJECT_TYPE and info.object_type:
         return _object_type_hover(info.object_type, schema)
 
-    if (
-        info.target == HoverTarget.FIELD_ATTR
-        and info.object_type
-        and info.field_python_name
-    ):
+    if info.target == HoverTarget.FIELD_ATTR and info.object_type and info.field_python_name:
         return _field_hover(info.object_type, info.field_python_name, schema)
 
     if info.target == HoverTarget.VARIABLE and info.variable_name:
@@ -130,9 +126,7 @@ def _object_type_hover(obj_type: str, schema: SchemaCache) -> str | None:
     return "\n".join(lines)
 
 
-def _field_hover(
-    obj_type: str, python_name: str, schema: SchemaCache
-) -> str | None:
+def _field_hover(obj_type: str, python_name: str, schema: SchemaCache) -> str | None:
     idf_name = schema.get_field_idf_name(obj_type, python_name)
     if not idf_name:
         return None
@@ -163,9 +157,7 @@ def _field_hover(
     return "\n".join(lines)
 
 
-def _variable_hover(
-    var_name: str, bindings: dict[str, InferredType]
-) -> str | None:
+def _variable_hover(var_name: str, bindings: dict[str, InferredType]) -> str | None:
     var_type = bindings.get(var_name)
     if not var_type:
         return None

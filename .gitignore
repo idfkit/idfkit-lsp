@@ -32,6 +32,12 @@ client/dist/
 .coverage
 htmlcov/
 
+# Ruff
+.ruff_cache/
+
+# Pyright
+pyrightconfig.json
+
 # OS
 .DS_Store
 Thumbs.db

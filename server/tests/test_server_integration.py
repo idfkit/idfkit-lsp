@@ -105,11 +105,16 @@ def lsp_server():
     )
 
     # Initialize handshake
-    _send_lsp(proc, "initialize", {
-        "processId": None,
-        "capabilities": {},
-        "rootUri": "file:///test",
-    }, id=1)
+    _send_lsp(
+        proc,
+        "initialize",
+        {
+            "processId": None,
+            "capabilities": {},
+            "rootUri": "file:///test",
+        },
+        id=1,
+    )
 
     response = _read_response(proc, 1, timeout=15)
     assert response is not None, "Server did not respond to initialize"
@@ -129,14 +134,18 @@ def lsp_server():
 
 
 def _open_doc(proc, uri: str, text: str, version: int = 1) -> None:
-    _send_lsp(proc, "textDocument/didOpen", {
-        "textDocument": {
-            "uri": uri,
-            "languageId": "python",
-            "version": version,
-            "text": text,
-        }
-    })
+    _send_lsp(
+        proc,
+        "textDocument/didOpen",
+        {
+            "textDocument": {
+                "uri": uri,
+                "languageId": "python",
+                "version": version,
+                "text": text,
+            }
+        },
+    )
     # Let the server process the notification
     time.sleep(0.2)
 
@@ -146,10 +155,15 @@ class TestCompletion:
         src = 'from idfkit import load_idf\ndoc = load_idf("x.idf")\ndoc["Zon'
         _open_doc(lsp_server, "file:///test_comp.py", src)
 
-        _send_lsp(lsp_server, "textDocument/completion", {
-            "textDocument": {"uri": "file:///test_comp.py"},
-            "position": {"line": 2, "character": 8},
-        }, id=10)
+        _send_lsp(
+            lsp_server,
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": "file:///test_comp.py"},
+                "position": {"line": 2, "character": 8},
+            },
+            id=10,
+        )
 
         resp = _read_response(lsp_server, 10)
         assert resp is not None
@@ -163,17 +177,22 @@ class TestCompletion:
 
     def test_field_attribute_completion(self, lsp_server) -> None:
         src = (
-            'from idfkit import load_idf\n'
+            "from idfkit import load_idf\n"
             'doc = load_idf("x.idf")\n'
             'zone = doc["Zone"]["Office"]\n'
-            'zone.x_'
+            "zone.x_"
         )
         _open_doc(lsp_server, "file:///test_field.py", src)
 
-        _send_lsp(lsp_server, "textDocument/completion", {
-            "textDocument": {"uri": "file:///test_field.py"},
-            "position": {"line": 3, "character": 7},
-        }, id=11)
+        _send_lsp(
+            lsp_server,
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": "file:///test_field.py"},
+                "position": {"line": 3, "character": 7},
+            },
+            id=11,
+        )
 
         resp = _read_response(lsp_server, 11)
         assert resp is not None
@@ -189,10 +208,15 @@ class TestCompletion:
         src = 'from idfkit import load_idf\ndoc = load_idf("x.idf")\ndoc.add("Build'
         _open_doc(lsp_server, "file:///test_add.py", src)
 
-        _send_lsp(lsp_server, "textDocument/completion", {
-            "textDocument": {"uri": "file:///test_add.py"},
-            "position": {"line": 2, "character": 14},
-        }, id=12)
+        _send_lsp(
+            lsp_server,
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": "file:///test_add.py"},
+                "position": {"line": 2, "character": 14},
+            },
+            id=12,
+        )
 
         resp = _read_response(lsp_server, 12)
         assert resp is not None
@@ -210,10 +234,15 @@ class TestHover:
         src = 'from idfkit import load_idf\ndoc = load_idf("x.idf")\ndoc["Zone"]'
         _open_doc(lsp_server, "file:///test_hover.py", src)
 
-        _send_lsp(lsp_server, "textDocument/hover", {
-            "textDocument": {"uri": "file:///test_hover.py"},
-            "position": {"line": 2, "character": 6},
-        }, id=20)
+        _send_lsp(
+            lsp_server,
+            "textDocument/hover",
+            {
+                "textDocument": {"uri": "file:///test_hover.py"},
+                "position": {"line": 2, "character": 6},
+            },
+            id=20,
+        )
 
         resp = _read_response(lsp_server, 20)
         assert resp is not None
@@ -225,17 +254,22 @@ class TestHover:
 
     def test_hover_on_field(self, lsp_server) -> None:
         src = (
-            'from idfkit import load_idf\n'
+            "from idfkit import load_idf\n"
             'doc = load_idf("x.idf")\n'
             'zone = doc["Zone"]["Office"]\n'
-            'zone.x_origin'
+            "zone.x_origin"
         )
         _open_doc(lsp_server, "file:///test_hover_field.py", src)
 
-        _send_lsp(lsp_server, "textDocument/hover", {
-            "textDocument": {"uri": "file:///test_hover_field.py"},
-            "position": {"line": 3, "character": 7},
-        }, id=21)
+        _send_lsp(
+            lsp_server,
+            "textDocument/hover",
+            {
+                "textDocument": {"uri": "file:///test_hover_field.py"},
+                "position": {"line": 3, "character": 7},
+            },
+            id=21,
+        )
 
         resp = _read_response(lsp_server, 21)
         assert resp is not None
@@ -251,10 +285,15 @@ class TestSignatureHelp:
         src = 'from idfkit import load_idf\ndoc = load_idf("x.idf")\ndoc.add("Zone", '
         _open_doc(lsp_server, "file:///test_sig.py", src)
 
-        _send_lsp(lsp_server, "textDocument/signatureHelp", {
-            "textDocument": {"uri": "file:///test_sig.py"},
-            "position": {"line": 2, "character": 16},
-        }, id=30)
+        _send_lsp(
+            lsp_server,
+            "textDocument/signatureHelp",
+            {
+                "textDocument": {"uri": "file:///test_sig.py"},
+                "position": {"line": 2, "character": 16},
+            },
+            id=30,
+        )
 
         resp = _read_response(lsp_server, 30)
         assert resp is not None

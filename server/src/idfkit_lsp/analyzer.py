@@ -11,7 +11,6 @@ import ast
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -71,9 +70,7 @@ class Scope:
 # Functions / constructors that produce IDFDocument
 # ---------------------------------------------------------------------------
 
-_DOCUMENT_FACTORIES: frozenset[str] = frozenset(
-    {"load_idf", "load_epjson", "new_document"}
-)
+_DOCUMENT_FACTORIES: frozenset[str] = frozenset({"load_idf", "load_epjson", "new_document"})
 
 # Type annotation names → IdfKitType
 _TYPE_NAMES: dict[str, IdfKitType] = {
@@ -146,7 +143,8 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         bindings = self._collect_bindings()
         log.debug(
             "analyze: %d binding(s), imports=%s",
-            len(bindings), list(self.imported_names.keys()),
+            len(bindings),
+            list(self.imported_names.keys()),
         )
         return bindings
 
@@ -156,7 +154,7 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         if tree is None:
             return {}
         for node in ast.iter_child_nodes(tree):
-            if hasattr(node, "lineno") and node.lineno > line:
+            if hasattr(node, "lineno") and node.lineno > line:  # pyright: ignore[reportAttributeAccessIssue]
                 break
             self.visit(node)
         return self._collect_bindings()
@@ -172,9 +170,7 @@ class IdfKitAnalyzer(ast.NodeVisitor):
                 self.imported_names[local] = alias.name
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module and (
-            node.module == "idfkit" or node.module.startswith("idfkit.")
-        ):
+        if node.module and (node.module == "idfkit" or node.module.startswith("idfkit.")):
             for alias in node.names:
                 local = alias.asname or alias.name
                 self.imported_names[local] = f"{node.module}.{alias.name}"
@@ -278,10 +274,7 @@ class IdfKitAnalyzer(ast.NodeVisitor):
     def _infer_call(self, node: ast.Call) -> InferredType | None:
         # Direct call: load_idf(...)
         if isinstance(node.func, ast.Name):
-            if (
-                node.func.id in _DOCUMENT_FACTORIES
-                and node.func.id in self.imported_names
-            ):
+            if node.func.id in _DOCUMENT_FACTORIES and node.func.id in self.imported_names:
                 return InferredType(IdfKitType.DOCUMENT)
 
         # Qualified call: idfkit.load_idf(...)
@@ -305,9 +298,7 @@ class IdfKitAnalyzer(ast.NodeVisitor):
             if node.func.attr == "first":
                 owner = self._infer_type(node.func.value)
                 if owner and owner.is_collection:
-                    return InferredType(
-                        IdfKitType.OBJECT, object_type=owner.object_type
-                    )
+                    return InferredType(IdfKitType.OBJECT, object_type=owner.object_type)
 
         return None
 
