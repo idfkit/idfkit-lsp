@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from idfkit_lsp.analyzer import IdfKitAnalyzer, InferredType
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,6 +31,7 @@ class DocumentStateManager:
         """Re-analyse the document and cache the results."""
         state = self._states.get(uri)
         if state and state.version == version:
+            log.debug("update: cache hit for %s v%d", uri, version)
             return state
 
         analyzer = IdfKitAnalyzer()
@@ -42,6 +46,10 @@ class DocumentStateManager:
             has_idfkit_import=has_import,
         )
         self._states[uri] = state
+        log.info(
+            "update: analysed %s v%d — idfkit=%s bindings=%d",
+            uri, version, has_import, len(bindings),
+        )
         return state
 
     def get(self, uri: str) -> DocumentState | None:
@@ -49,6 +57,7 @@ class DocumentStateManager:
 
     def remove(self, uri: str) -> None:
         self._states.pop(uri, None)
+        log.debug("remove: dropped state for %s", uri)
 
     def get_bindings_at_line(self, uri: str, line: int) -> dict[str, InferredType]:
         """Get type bindings visible at a specific line (for completion context).

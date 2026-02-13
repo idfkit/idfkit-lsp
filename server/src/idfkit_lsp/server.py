@@ -17,6 +17,37 @@ log = logging.getLogger(__name__)
 
 server = LanguageServer("idfkit-lsp", "v0.1.0")
 
+
+# ---------------------------------------------------------------------------
+# Logging bridge: forward Python logging → LSP window/logMessage
+# ---------------------------------------------------------------------------
+
+_LOG_LEVEL_TO_MESSAGE_TYPE = {
+    logging.DEBUG: types.MessageType.Log,
+    logging.INFO: types.MessageType.Info,
+    logging.WARNING: types.MessageType.Warning,
+    logging.ERROR: types.MessageType.Error,
+    logging.CRITICAL: types.MessageType.Error,
+}
+
+
+class _LspLogHandler(logging.Handler):
+    """Forwards Python log records to the LSP client via ``window/logMessage``."""
+
+    def __init__(self, ls: LanguageServer) -> None:
+        super().__init__()
+        self._ls = ls
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            msg_type = _LOG_LEVEL_TO_MESSAGE_TYPE.get(
+                record.levelno, types.MessageType.Log
+            )
+            self._ls.show_message_log(msg, msg_type)
+        except Exception:
+            self.handleError(record)
+
 # These are initialised in the ``initialized`` handler once the client is ready.
 _schema: SchemaCache | None = None
 _docs: DocumentStateManager | None = None
@@ -30,6 +61,16 @@ _docs: DocumentStateManager | None = None
 @server.feature(types.INITIALIZED)
 def on_initialized(params: types.InitializedParams) -> None:
     global _schema, _docs
+
+    # Attach the LSP log handler so Python logs appear in the client output panel.
+    # Only forward INFO and above over LSP; DEBUG stays on stderr only.
+    lsp_handler = _LspLogHandler(server)
+    lsp_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    lsp_handler.setLevel(logging.INFO)
+    root = logging.getLogger("idfkit_lsp")
+    root.addHandler(lsp_handler)
+    root.setLevel(logging.DEBUG)
+
     _schema = SchemaCache()
     _docs = DocumentStateManager()
     log.info("idfkit-lsp server initialised (schema %s)", _schema.object_types[:3])
@@ -40,6 +81,7 @@ def on_did_open(params: types.DidOpenTextDocumentParams) -> None:
     if _docs is None:
         return
     td = params.text_document
+    log.info("didOpen  uri=%s version=%s len=%d", td.uri, td.version, len(td.text))
     _docs.update(td.uri, td.text, td.version or 0)
 
 
@@ -48,6 +90,7 @@ def on_did_change(params: types.DidChangeTextDocumentParams) -> None:
     if _docs is None:
         return
     doc = server.workspace.get_text_document(params.text_document.uri)
+    log.debug("didChange uri=%s version=%s", params.text_document.uri, params.text_document.version)
     _docs.update(
         params.text_document.uri,
         doc.source,
@@ -59,6 +102,7 @@ def on_did_change(params: types.DidChangeTextDocumentParams) -> None:
 def on_did_close(params: types.DidCloseTextDocumentParams) -> None:
     if _docs is None:
         return
+    log.info("didClose uri=%s", params.text_document.uri)
     _docs.remove(params.text_document.uri)
 
 
@@ -85,6 +129,7 @@ def on_completion(params: types.CompletionParams) -> types.CompletionList:
     doc = server.workspace.get_text_document(uri)
     lines = doc.source.splitlines()
     if line >= len(lines):
+        log.debug("completion: line %d out of range (total %d)", line, len(lines))
         return types.CompletionList(is_incomplete=False, items=[])
 
     line_text = lines[line]
@@ -94,6 +139,10 @@ def on_completion(params: types.CompletionParams) -> types.CompletionList:
     info = detect_completion_context(line_text, character, bindings)
     items = build_completion_items(info, _schema)
 
+    log.info(
+        "completion: ctx=%s obj_type=%s prefix=%r → %d items",
+        info.context.value, info.object_type, info.prefix, len(items),
+    )
     return types.CompletionList(is_incomplete=False, items=items)
 
 
@@ -121,12 +170,15 @@ def on_hover(params: types.HoverParams) -> types.Hover | None:
 
     target = detect_hover_target(line_text, character, bindings)
     if not target:
+        log.debug("hover: no target at %d:%d", line, character)
         return None
 
     content = build_hover_content(target, bindings, _schema)
     if not content:
+        log.debug("hover: no content for target=%s", target.target.value)
         return None
 
+    log.info("hover: target=%s obj_type=%s", target.target.value, target.object_type)
     return types.Hover(
         contents=types.MarkupContent(
             kind=types.MarkupKind.Markdown,
@@ -162,7 +214,9 @@ def on_signature_help(params: types.SignatureHelpParams) -> types.SignatureHelp 
 
     result = detect_add_call(line_text, character, bindings)
     if not result:
+        log.debug("signatureHelp: no add() call at %d:%d", line, character)
         return None
 
     _var_name, obj_type, active_param = result
+    log.info("signatureHelp: obj_type=%s active_param=%d", obj_type, active_param)
     return build_signature_help(obj_type, active_param, _schema)

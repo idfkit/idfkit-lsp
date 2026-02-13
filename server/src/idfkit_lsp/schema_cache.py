@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import Any
 
@@ -13,6 +14,8 @@ from idfkit.introspection import (
 )
 from idfkit.objects import to_python_name
 from idfkit.schema import EpJSONSchema
+
+log = logging.getLogger(__name__)
 
 
 class SchemaCache:
@@ -27,6 +30,10 @@ class SchemaCache:
         }
         # Lazy cache: obj_type → {python_name: idf_name}
         self._field_map_cache: dict[str, dict[str, str]] = {}
+        log.info(
+            "SchemaCache loaded: version=%s object_types=%d",
+            ".".join(str(v) for v in version), len(self._object_types),
+        )
 
     @property
     def object_types(self) -> list[str]:
