@@ -1,0 +1,201 @@
+"""Tests for the AST-based idfkit type inference engine."""
+
+from __future__ import annotations
+
+from idfkit_lsp.analyzer import IdfKitAnalyzer, IdfKitType, InferredType
+
+
+class TestImportTracking:
+    def test_from_import(self) -> None:
+        src = "from idfkit import load_idf\n"
+        a = IdfKitAnalyzer()
+        a.analyze(src)
+        assert "load_idf" in a.imported_names
+
+    def test_import_module(self) -> None:
+        src = "import idfkit\n"
+        a = IdfKitAnalyzer()
+        a.analyze(src)
+        assert "idfkit" in a.imported_names
+
+    def test_aliased_import(self) -> None:
+        src = "from idfkit import load_idf as li\n"
+        a = IdfKitAnalyzer()
+        a.analyze(src)
+        assert "li" in a.imported_names
+
+    def test_no_idfkit_import_yields_empty(self) -> None:
+        src = "import os\ndoc = some_func()\n"
+        a = IdfKitAnalyzer()
+        bindings = a.analyze(src)
+        assert len(bindings) == 0
+
+
+class TestDocumentFactories:
+    def test_load_idf(self) -> None:
+        src = 'from idfkit import load_idf\ndoc = load_idf("model.idf")\n'
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"] == InferredType(IdfKitType.DOCUMENT)
+
+    def test_load_epjson(self) -> None:
+        src = 'from idfkit import load_epjson\ndoc = load_epjson("m.epJSON")\n'
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+    def test_new_document(self) -> None:
+        src = "from idfkit import new_document\ndoc = new_document()\n"
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+    def test_qualified_call(self) -> None:
+        src = 'import idfkit\ndoc = idfkit.load_idf("x.idf")\n'
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+    def test_unrecognised_call_not_tracked(self) -> None:
+        src = "from idfkit import load_idf\nresult = other_func()\n"
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert "result" not in bindings
+
+
+class TestSubscriptInference:
+    def test_doc_subscript_gives_collection(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'zones = doc["Zone"]\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["zones"] == InferredType(IdfKitType.COLLECTION, "Zone")
+
+    def test_collection_subscript_gives_object(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'zones = doc["Zone"]\n'
+            'z = zones["Office"]\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+    def test_chained_subscript(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'z = doc["Zone"]["Office"]\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+
+class TestDocAdd:
+    def test_add_with_string_type(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'z = doc.add("Zone", "Office")\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+    def test_add_without_type_string(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            "z = doc.add(obj_type, name)\n"
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        # We know it's an IDFObject but don't know the object_type
+        assert bindings["z"].is_object
+        assert bindings["z"].object_type is None
+
+
+class TestForLoopIteration:
+    def test_for_over_collection(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'for z in doc["Zone"]:\n'
+            "    pass\n"
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+    def test_for_over_named_collection(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'zones = doc["Zone"]\n'
+            "for z in zones:\n"
+            "    pass\n"
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+
+class TestAnnotations:
+    def test_annotated_document(self) -> None:
+        src = "from idfkit import IDFDocument\ndoc: IDFDocument\n"
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+    def test_annotated_object(self) -> None:
+        src = "from idfkit import IDFObject\nobj: IDFObject\n"
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["obj"].is_object
+
+    def test_function_param_annotation(self) -> None:
+        src = (
+            "from idfkit import IDFDocument\n"
+            "def process(doc: IDFDocument):\n"
+            '    zones = doc["Zone"]\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["zones"] == InferredType(IdfKitType.COLLECTION, "Zone")
+
+    def test_value_overrides_annotation(self) -> None:
+        src = (
+            'from idfkit import load_idf, IDFDocument\n'
+            'doc: IDFDocument = load_idf("x.idf")\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+
+class TestAnalyzeAtLine:
+    def test_stops_at_line(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'        # line 1
+            'doc = load_idf("x.idf")\n'            # line 2
+            'zones = doc["Zone"]\n'                 # line 3
+            'zone = zones["Office"]\n'              # line 4
+        )
+        bindings = IdfKitAnalyzer().analyze_at_line(src, 3)
+        assert "zones" in bindings
+        assert "zone" not in bindings
+
+    def test_includes_exact_line(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+        )
+        bindings = IdfKitAnalyzer().analyze_at_line(src, 2)
+        assert "doc" in bindings
+
+
+class TestCollectionFirst:
+    def test_first_returns_object(self) -> None:
+        src = (
+            'from idfkit import load_idf\n'
+            'doc = load_idf("x.idf")\n'
+            'z = doc["Zone"].first()\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["z"] == InferredType(IdfKitType.OBJECT, "Zone")
+
+
+class TestSyntaxError:
+    def test_invalid_source(self) -> None:
+        src = "this is not valid python {{{}}}"
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings == {}

@@ -1,0 +1,60 @@
+{
+    "name": "idfkit-lsp",
+    "displayName": "idfkit Language Support",
+    "description": "Intelligent editing support for Python files using the idfkit EnergyPlus library",
+    "version": "0.1.0",
+    "publisher": "idfkit",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/samuelduchesne/idfkit-lsp"
+    },
+    "engines": {
+        "vscode": "^1.78.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:python"
+    ],
+    "main": "./client/dist/extension.js",
+    "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "idfkit Language Server",
+            "properties": {
+                "idfkitLsp.pythonPath": {
+                    "type": "string",
+                    "default": "python3",
+                    "description": "Path to Python interpreter with idfkit and idfkit-lsp installed"
+                },
+                "idfkitLsp.trace.server": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the language server"
+                }
+            }
+        },
+        "commands": [
+            {
+                "command": "idfkitLsp.restartServer",
+                "title": "idfkit: Restart Language Server"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "cd client && npm run build",
+        "watch": "cd client && npm run watch"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.78.0",
+        "typescript": "^5.0.0"
+    }
+}

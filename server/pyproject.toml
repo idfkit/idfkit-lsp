@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "idfkit-lsp"
+version = "0.1.0"
+description = "Language Server Protocol implementation for idfkit EnergyPlus library"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "pygls>=2.0",
+    "lsprotocol",
+    "idfkit",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/idfkit_lsp"]
