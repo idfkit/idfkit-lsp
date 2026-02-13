@@ -16,11 +16,17 @@ export function activate(context: vscode.ExtensionContext): void {
         args: ["-m", "idfkit_lsp"],
     };
 
+    const outputChannel = vscode.window.createOutputChannel(
+        "idfkit Language Server"
+    );
+    const traceOutputChannel = vscode.window.createOutputChannel(
+        "idfkit Language Server (Trace)"
+    );
+
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: "file", language: "python" }],
-        outputChannel: vscode.window.createOutputChannel(
-            "idfkit Language Server"
-        ),
+        outputChannel,
+        traceOutputChannel,
     };
 
     client = new LanguageClient(

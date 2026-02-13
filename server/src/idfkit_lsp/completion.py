@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -10,6 +11,8 @@ from lsprotocol import types
 
 from idfkit_lsp.analyzer import InferredType
 from idfkit_lsp.schema_cache import SchemaCache
+
+log = logging.getLogger(__name__)
 
 
 class CompletionContext(Enum):
@@ -93,6 +96,7 @@ def detect_completion_context(
                 prefix=prefix,
             )
 
+    log.debug("detect_completion_context: no pattern matched for %r", text)
     return CompletionInfo(CompletionContext.NONE)
 
 

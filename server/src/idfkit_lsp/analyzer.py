@@ -8,9 +8,12 @@ possible, what EnergyPlus object type they are parameterised with.
 from __future__ import annotations
 
 import ast
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 
 class IdfKitType(Enum):
@@ -102,9 +105,12 @@ def _robust_parse(source: str) -> ast.Module | None:
     for drop in range(1, min(len(lines), 5)):
         truncated = "".join(lines[: len(lines) - drop])
         try:
-            return ast.parse(truncated)
+            tree = ast.parse(truncated)
+            log.debug("robust_parse: succeeded after dropping %d trailing line(s)", drop)
+            return tree
         except SyntaxError:
             continue
+    log.debug("robust_parse: failed even after dropping up to 4 trailing lines")
     return None
 
 
@@ -134,9 +140,15 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         """
         tree = _robust_parse(source)
         if tree is None:
+            log.debug("analyze: parse returned None — no bindings")
             return {}
         self.visit(tree)
-        return self._collect_bindings()
+        bindings = self._collect_bindings()
+        log.debug(
+            "analyze: %d binding(s), imports=%s",
+            len(bindings), list(self.imported_names.keys()),
+        )
+        return bindings
 
     def analyze_at_line(self, source: str, line: int) -> dict[str, InferredType]:
         """Analyze statements up to and including *line* (1-based)."""

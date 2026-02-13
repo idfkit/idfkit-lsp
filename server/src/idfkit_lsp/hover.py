@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
 
 from idfkit_lsp.analyzer import InferredType
 from idfkit_lsp.schema_cache import SchemaCache
+
+log = logging.getLogger(__name__)
 
 
 class HoverTarget(Enum):
@@ -72,6 +75,7 @@ def detect_hover_target(
             if var_name in bindings:
                 return HoverInfo(HoverTarget.VARIABLE, variable_name=var_name)
 
+    log.debug("detect_hover_target: no target at character %d", character)
     return None
 
 

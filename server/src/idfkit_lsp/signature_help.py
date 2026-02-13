@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from lsprotocol import types
 
 from idfkit_lsp.analyzer import InferredType
 from idfkit_lsp.schema_cache import SchemaCache
+
+log = logging.getLogger(__name__)
 
 
 def detect_add_call(
@@ -29,6 +32,7 @@ def detect_add_call(
     var_name = m.group(1)
     var_type = bindings.get(var_name)
     if not var_type or not var_type.is_document:
+        log.debug("detect_add_call: %r is not a document variable", var_name)
         return None
 
     args_text = m.group(2)
