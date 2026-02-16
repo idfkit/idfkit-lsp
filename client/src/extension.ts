@@ -7,7 +7,7 @@ import {
 
 let client: LanguageClient | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const config = vscode.workspace.getConfiguration("idfkitLsp");
     const pythonPath = config.get<string>("pythonPath", "python3");
 
@@ -23,6 +23,8 @@ export function activate(context: vscode.ExtensionContext): void {
         "idfkit Language Server (Trace)"
     );
 
+    context.subscriptions.push(outputChannel, traceOutputChannel);
+
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: "file", language: "python" }],
         outputChannel,
@@ -36,7 +38,7 @@ export function activate(context: vscode.ExtensionContext): void {
         clientOptions
     );
 
-    client.start();
+    await client.start();
 
     context.subscriptions.push(
         vscode.commands.registerCommand(

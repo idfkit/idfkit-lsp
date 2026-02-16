@@ -81,7 +81,7 @@ def on_did_open(params: types.DidOpenTextDocumentParams) -> None:
         return
     td = params.text_document
     log.info("didOpen  uri=%s version=%s len=%d", td.uri, td.version, len(td.text))
-    _docs.update(td.uri, td.text, td.version or 0)
+    _docs.update(td.uri, td.text, td.version if td.version is not None else 0)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
@@ -95,7 +95,7 @@ def on_did_change(params: types.DidChangeTextDocumentParams) -> None:
     _docs.update(
         params.text_document.uri,
         doc.source,
-        params.text_document.version or 0,
+        params.text_document.version if params.text_document.version is not None else 0,
     )
 
 

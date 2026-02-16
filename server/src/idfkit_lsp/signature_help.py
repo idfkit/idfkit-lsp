@@ -158,10 +158,16 @@ def _count_parameters(args_text: str) -> int:
     """Count which parameter the cursor is on by counting commas outside strings/parens."""
     depth = 0
     in_string: str | None = None
+    escape = False
     count = 0
     for ch in args_text:
+        if escape:
+            escape = False
+            continue
         if in_string:
-            if ch == in_string:
+            if ch == "\\":
+                escape = True
+            elif ch == in_string:
                 in_string = None
             continue
         if ch in ('"', "'"):

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from idfkit_lsp.analyzer import IdfKitAnalyzer, InferredType
+from idfkit_lsp.analyzer import IdfKitAnalyzer, InferredType, _robust_parse
+
+if TYPE_CHECKING:
+    import ast
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +20,7 @@ class DocumentState:
 
     uri: str
     source: str = ""
+    tree: ast.Module | None = None
     bindings: dict[str, InferredType] = field(default_factory=dict)
     version: int = 0
     has_idfkit_import: bool = False
@@ -34,13 +39,17 @@ class DocumentStateManager:
             log.debug("update: cache hit for %s v%d", uri, version)
             return state
 
+        tree = _robust_parse(source)
         analyzer = IdfKitAnalyzer()
-        bindings = analyzer.analyze(source)
+        if tree is not None:
+            analyzer.visit(tree)
+        bindings = analyzer._collect_bindings()
         has_import = bool(analyzer.imported_names)
 
         state = DocumentState(
             uri=uri,
             source=source,
+            tree=tree,
             bindings=bindings,
             version=version,
             has_idfkit_import=has_import,
@@ -68,7 +77,7 @@ class DocumentStateManager:
         *line* is 1-based (matching AST lineno convention).
         """
         state = self._states.get(uri)
-        if not state:
+        if not state or state.tree is None:
             return {}
         analyzer = IdfKitAnalyzer()
-        return analyzer.analyze_at_line(state.source, line)
+        return analyzer.analyze_tree_at_line(state.tree, line)

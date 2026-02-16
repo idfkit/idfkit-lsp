@@ -153,6 +153,10 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         tree = _robust_parse(source)
         if tree is None:
             return {}
+        return self.analyze_tree_at_line(tree, line)
+
+    def analyze_tree_at_line(self, tree: ast.Module, line: int) -> dict[str, InferredType]:
+        """Analyze a pre-parsed AST up to and including *line* (1-based)."""
         for node in ast.iter_child_nodes(tree):
             if hasattr(node, "lineno") and node.lineno > line:  # pyright: ignore[reportAttributeAccessIssue]
                 break

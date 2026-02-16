@@ -23,8 +23,6 @@ class SchemaCache:
     def __init__(self, version: tuple[int, int, int] = LATEST_VERSION) -> None:
         self._schema: EpJSONSchema = get_schema(version)
         self._object_types: list[str] = self._schema.object_types
-        # Lowercase → canonical mapping for case-insensitive matching
-        self._object_type_lower: dict[str, str] = {ot.lower(): ot for ot in self._object_types}
         # Lazy cache: obj_type → {python_name: idf_name}
         self._field_map_cache: dict[str, dict[str, str]] = {}
         log.info(
