@@ -99,7 +99,11 @@ export function activate(context: vscode.ExtensionContext): void {
             "idfkitLsp.restartServer",
             async () => {
                 if (client) {
-                    await client.stop();
+                    try {
+                        await client.stop();
+                    } catch {
+                        // Client may be in starting/startFailed state
+                    }
                     await client.start();
                 }
             }
@@ -109,7 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): Thenable<void> | undefined {
     if (client) {
-        return client.stop();
+        return client.stop().catch(() => undefined);
     }
     return undefined;
 }
