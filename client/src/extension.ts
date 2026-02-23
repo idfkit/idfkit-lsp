@@ -42,8 +42,6 @@ function resolvePythonPath(extensionPath: string): string {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-    const pythonPath = resolvePythonPath(context.extensionPath);
-
     const outputChannel = vscode.window.createOutputChannel(
         "idfkit Language Server"
     );
@@ -51,12 +49,19 @@ export function activate(context: vscode.ExtensionContext): void {
         "idfkit Language Server (Trace)"
     );
 
-    outputChannel.appendLine(`Using Python: ${pythonPath}`);
+    outputChannel.appendLine("Activating idfkit Language Server extension...");
+    outputChannel.appendLine(`Extension path: ${context.extensionPath}`);
+
+    const pythonPath = resolvePythonPath(context.extensionPath);
+    outputChannel.appendLine(`Resolved Python: ${pythonPath}`);
 
     const serverOptions: ServerOptions = {
         command: pythonPath,
         args: ["-m", "idfkit_lsp"],
     };
+    outputChannel.appendLine(
+        `Server command: ${pythonPath} -m idfkit_lsp`
+    );
 
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: "file", language: "python" }],
@@ -71,28 +76,37 @@ export function activate(context: vscode.ExtensionContext): void {
         clientOptions
     );
 
-    client.start().catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        outputChannel.appendLine(`[ERROR] Server failed to start: ${msg}`);
-        vscode.window
-            .showErrorMessage(
-                `idfkit Language Server failed to start. ` +
-                    `Is idfkit-lsp installed for "${pythonPath}"? ` +
-                    `Run: pip install -e ./server`,
-                "Open Output",
-                "Open Settings"
-            )
-            .then((choice) => {
-                if (choice === "Open Output") {
-                    outputChannel.show();
-                } else if (choice === "Open Settings") {
-                    vscode.commands.executeCommand(
-                        "workbench.action.openSettings",
-                        "idfkitLsp.pythonPath"
-                    );
-                }
-            });
-    });
+    outputChannel.appendLine("Starting language client...");
+    client.start().then(
+        () => {
+            outputChannel.appendLine("Language client started successfully.");
+        },
+        (err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            outputChannel.appendLine(`[ERROR] Server failed to start: ${msg}`);
+            if (err instanceof Error && err.stack) {
+                outputChannel.appendLine(err.stack);
+            }
+            vscode.window
+                .showErrorMessage(
+                    `idfkit Language Server failed to start. ` +
+                        `Is idfkit-lsp installed for "${pythonPath}"? ` +
+                        `Run: pip install -e ./server`,
+                    "Open Output",
+                    "Open Settings"
+                )
+                .then((choice) => {
+                    if (choice === "Open Output") {
+                        outputChannel.show();
+                    } else if (choice === "Open Settings") {
+                        vscode.commands.executeCommand(
+                            "workbench.action.openSettings",
+                            "idfkitLsp.pythonPath"
+                        );
+                    }
+                });
+        }
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand(
