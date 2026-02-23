@@ -9,6 +9,9 @@
             "args": [
                 "--extensionDevelopmentPath=${workspaceFolder}"
             ],
+            "env": {
+                "NODE_OPTIONS": "--no-deprecation --disable-warning=ExperimentalWarning"
+            },
             "outFiles": [
                 "${workspaceFolder}/client/dist/**/*.js"
             ]
