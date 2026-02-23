@@ -22,6 +22,7 @@ env/
 
 # Node
 node_modules/
+package-lock.json
 client/dist/
 
 # VS Code extension
