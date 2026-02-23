@@ -42,7 +42,7 @@ class _LspLogHandler(logging.Handler):
         try:
             msg = self.format(record)
             msg_type = _LOG_LEVEL_TO_MESSAGE_TYPE.get(record.levelno, types.MessageType.Log)
-            self._ls.show_message_log(msg, msg_type)  # pyright: ignore[reportAttributeAccessIssue]
+            self._ls.window_log_message(types.LogMessageParams(type=msg_type, message=msg))
         except Exception:
             self.handleError(record)
 

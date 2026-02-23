@@ -44,15 +44,21 @@ def detect_hover_target(
             if var_type and var_type.is_document:
                 return HoverInfo(HoverTarget.OBJECT_TYPE, object_type=obj_type)
 
-    # Check: cursor inside a quoted string in .add("...") → object type
-    for m in re.finditer(r'(\w+)\.add\(\s*[\"\']([^"\']+)[\"\']', line_text):
-        start, end = m.start(2), m.end(2)
-        if start <= character <= end:
-            var_name = m.group(1)
-            obj_type = m.group(2)
-            var_type = bindings.get(var_name)
-            if var_type and var_type.is_document:
-                return HoverInfo(HoverTarget.OBJECT_TYPE, object_type=obj_type)
+    # Check: cursor inside .add("...") → object type (on the string OR on "add")
+    for m in re.finditer(r'(\w+)\.(add)\(\s*[\"\']([^"\']+)[\"\']', line_text):
+        var_name = m.group(1)
+        obj_type = m.group(3)
+        var_type = bindings.get(var_name)
+        if not (var_type and var_type.is_document):
+            continue
+        # Cursor on the object type string
+        str_start, str_end = m.start(3), m.end(3)
+        if str_start <= character <= str_end:
+            return HoverInfo(HoverTarget.OBJECT_TYPE, object_type=obj_type)
+        # Cursor on the "add" method name
+        add_start, add_end = m.start(2), m.end(2)
+        if add_start <= character <= add_end:
+            return HoverInfo(HoverTarget.OBJECT_TYPE, object_type=obj_type)
 
     # Check: cursor on an attribute after a dot → field
     for m in re.finditer(r"(\w+)\.(\w+)", line_text):
@@ -93,7 +99,7 @@ def build_hover_content(
         return _field_hover(info.object_type, info.field_python_name, schema)
 
     if info.target == HoverTarget.VARIABLE and info.variable_name:
-        return _variable_hover(info.variable_name, bindings)
+        return _variable_hover(info.variable_name, bindings, schema)
 
     return None
 
@@ -157,11 +163,21 @@ def _field_hover(obj_type: str, python_name: str, schema: SchemaCache) -> str | 
     return "\n".join(lines)
 
 
-def _variable_hover(var_name: str, bindings: dict[str, InferredType]) -> str | None:
+def _variable_hover(
+    var_name: str,
+    bindings: dict[str, InferredType],
+    schema: SchemaCache,
+) -> str | None:
     var_type = bindings.get(var_name)
     if not var_type:
         return None
     type_str = var_type.kind.value
     if var_type.object_type:
         type_str += f' (object type: "{var_type.object_type}")'
-    return f"**{var_name}**: `{type_str}`"
+    lines = [f"**{var_name}**: `{type_str}`"]
+    if var_type.object_type and var_type.object_type in schema:
+        desc = schema.describe(var_type.object_type)
+        if desc.memo:
+            lines.append("")
+            lines.append(desc.memo)
+    return "\n".join(lines)

@@ -27,6 +27,14 @@ class TestHoverDetection:
         assert info.target == HoverTarget.OBJECT_TYPE
         assert info.object_type == "Zone"
 
+    def test_add_method_hover(self) -> None:
+        bindings = {"doc": InferredType(IdfKitType.DOCUMENT)}
+        # Cursor on "add" (position 5 = 'a' of 'add')
+        info = detect_hover_target('doc.add("Zone", "Office")', 5, bindings)
+        assert info is not None
+        assert info.target == HoverTarget.OBJECT_TYPE
+        assert info.object_type == "Zone"
+
     def test_field_attribute(self) -> None:
         bindings = {"zone": InferredType(IdfKitType.OBJECT, "Zone")}
         info = detect_hover_target("zone.x_origin", 7, bindings)
@@ -70,13 +78,22 @@ class TestHoverContent:
         assert "number" in content
         assert "m" in content  # units
 
-    def test_variable_content(self) -> None:
+    def test_variable_content(self, schema: SchemaCache) -> None:
         bindings = {"doc": InferredType(IdfKitType.DOCUMENT)}
         info = HoverInfo(HoverTarget.VARIABLE, variable_name="doc")
-        # schema not needed for variable hover
-        content = build_hover_content(info, bindings, SchemaCache.__new__(SchemaCache))  # type: ignore[arg-type]
+        content = build_hover_content(info, bindings, schema)
         assert content is not None
         assert "IDFDocument" in content
+
+    def test_variable_content_with_object_memo(self, schema: SchemaCache) -> None:
+        bindings = {"zone": InferredType(IdfKitType.OBJECT, "Zone")}
+        info = HoverInfo(HoverTarget.VARIABLE, variable_name="zone")
+        content = build_hover_content(info, bindings, schema)
+        assert content is not None
+        assert "IDFObject" in content
+        assert "Zone" in content
+        # Should include the object memo
+        assert "thermal zone" in content.lower()
 
     def test_unknown_object_type(self, schema: SchemaCache) -> None:
         bindings: dict[str, InferredType] = {}
