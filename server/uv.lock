@@ -106,31 +106,37 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "idfkit" },
-    { name = "lsprotocol" },
-    { name = "pygls" },
 ]
 
 [package.optional-dependencies]
 dev = [
+    { name = "lsprotocol" },
     { name = "pre-commit" },
+    { name = "pygls" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+server = [
+    { name = "lsprotocol" },
+    { name = "pygls" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "idfkit", specifier = ">=0.4.0" },
-    { name = "lsprotocol" },
+    { name = "lsprotocol", marker = "extra == 'dev'" },
+    { name = "lsprotocol", marker = "extra == 'server'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "pygls", specifier = ">=2.0" },
+    { name = "pygls", marker = "extra == 'dev'", specifier = ">=2.0" },
+    { name = "pygls", marker = "extra == 'server'", specifier = ">=2.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["server", "lint", "dev"]
 
 [[package]]
 name = "iniconfig"

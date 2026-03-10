@@ -44,6 +44,30 @@ class InferredType:
 
 
 # ---------------------------------------------------------------------------
+# Usage sites — tracked for cross-version linting
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ObjectTypeUsage:
+    """An EnergyPlus object type referenced in source code."""
+
+    object_type: str  # e.g. "Zone"
+    line: int  # 1-based
+    col: int  # 0-based
+
+
+@dataclass(frozen=True)
+class FieldUsage:
+    """A field access on an inferred IDFObject."""
+
+    object_type: str  # e.g. "Zone"
+    field_name: str  # snake_case, e.g. "x_origin"
+    line: int  # 1-based
+    col: int  # 0-based
+
+
+# ---------------------------------------------------------------------------
 # Scope chain for variable tracking
 # ---------------------------------------------------------------------------
 
@@ -119,11 +143,15 @@ def _robust_parse(source: str) -> ast.Module | None:
 class IdfKitAnalyzer(ast.NodeVisitor):
     """Single-pass AST visitor that builds variable → InferredType mappings."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, track_usages: bool = False) -> None:
         self.scope = Scope()
         self.imported_names: dict[str, str] = {}  # local_name → qualified_name
         # Accumulate all bindings across all scopes (inner scopes override)
         self._all_bindings: dict[str, InferredType] = {}
+        # Usage tracking (opt-in, used by the linter)
+        self._track_usages = track_usages
+        self.object_type_usages: list[ObjectTypeUsage] = []
+        self.field_usages: list[FieldUsage] = []
 
     # ------------------------------------------------------------------
     # Public interface
@@ -140,6 +168,9 @@ class IdfKitAnalyzer(ast.NodeVisitor):
             log.debug("analyze: parse returned None — no bindings")
             return {}
         self.visit(tree)
+        # Second pass: collect field usages from attribute accesses
+        if self._track_usages:
+            self._collect_field_usages(tree)
         bindings = self._collect_bindings()
         log.debug(
             "analyze: %d binding(s), imports=%s",
@@ -292,6 +323,18 @@ class IdfKitAnalyzer(ast.NodeVisitor):
                 owner = self._infer_type(node.func.value)
                 if owner and owner.is_document:
                     obj_type = self._extract_string_arg(node, 0)
+                    if obj_type and self._track_usages:
+                        # Record the object type usage from the string literal
+                        arg_node = node.args[0]
+                        self.object_type_usages.append(
+                            ObjectTypeUsage(obj_type, arg_node.lineno, arg_node.col_offset)
+                        )
+                        # Record keyword arg field usages
+                        for kw in node.keywords:
+                            if kw.arg:
+                                self.field_usages.append(
+                                    FieldUsage(obj_type, kw.arg, kw.lineno, kw.col_offset)
+                                )
                     return InferredType(IdfKitType.OBJECT, object_type=obj_type)
 
             # collection.first() → IDFObject with same object_type
@@ -311,6 +354,11 @@ class IdfKitAnalyzer(ast.NodeVisitor):
 
         # doc["Zone"] → IDFCollection("Zone")
         if value_type.is_document and key_str:
+            if self._track_usages:
+                sl = node.slice
+                self.object_type_usages.append(
+                    ObjectTypeUsage(key_str, sl.lineno, sl.col_offset)  # type: ignore[union-attr]
+                )
             return InferredType(IdfKitType.COLLECTION, object_type=key_str)
 
         # collection["name"] → IDFObject(same object_type)
@@ -355,6 +403,16 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
             return sl.value
         return None
+
+    def _collect_field_usages(self, tree: ast.Module) -> None:
+        """Walk the full AST and record all attribute accesses on IDFObject variables."""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                owner_type = self._infer_type(node.value)
+                if owner_type and owner_type.is_object and owner_type.object_type:
+                    self.field_usages.append(
+                        FieldUsage(owner_type.object_type, node.attr, node.lineno, node.col_offset)
+                    )
 
     def _collect_bindings(self) -> dict[str, InferredType]:
         """Return all bindings accumulated during traversal."""
