@@ -6,12 +6,8 @@ import logging
 from functools import lru_cache
 from typing import Any
 
-from idfkit import LATEST_VERSION, get_schema
-from idfkit.introspection import (
-    ObjectDescription,
-    describe_object_type,
-)
-from idfkit.objects import to_python_name
+from idfkit import LATEST_VERSION, FieldDescription, ObjectDescription, get_schema
+from idfkit.introspection import describe_object_type
 from idfkit.schema import EpJSONSchema
 
 log = logging.getLogger(__name__)
@@ -25,8 +21,6 @@ class SchemaCache:
         self._object_types: list[str] = self._schema.object_types
         # Lowercase → canonical mapping for case-insensitive matching
         self._object_type_lower: dict[str, str] = {ot.lower(): ot for ot in self._object_types}
-        # Lazy cache: obj_type → {python_name: idf_name}
-        self._field_map_cache: dict[str, dict[str, str]] = {}
         log.info(
             "SchemaCache loaded: version=%s object_types=%d",
             ".".join(str(v) for v in version),
@@ -40,27 +34,24 @@ class SchemaCache:
     def __contains__(self, obj_type: str) -> bool:
         return obj_type in self._schema
 
-    def _ensure_field_map(self, obj_type: str) -> dict[str, str]:
-        """Build and cache the python_name → idf_name mapping for an object type."""
-        if obj_type not in self._field_map_cache:
-            idf_names = self._schema.get_field_names(obj_type)
-            self._field_map_cache[obj_type] = {to_python_name(name): name for name in idf_names}
-        return self._field_map_cache[obj_type]
-
     def get_field_python_names(self, obj_type: str) -> list[str]:
         """Return field names as snake_case python attribute names."""
-        return list(self._ensure_field_map(obj_type).keys())
+        return self._schema.get_field_names(obj_type)
 
-    def get_field_idf_name(self, obj_type: str, python_name: str) -> str | None:
-        """Reverse lookup: python_name → IDF field name."""
-        return self._ensure_field_map(obj_type).get(python_name)
-
-    def get_field_schema(self, obj_type: str, idf_field_name: str) -> dict[str, Any] | None:
+    def get_field_schema(self, obj_type: str, python_name: str) -> dict[str, Any] | None:
         """Return the raw schema dict for a field (type, units, default, min, max, enum)."""
-        return self._schema.get_field_schema(obj_type, idf_field_name)
+        return self._schema.get_field_schema(obj_type, python_name)
+
+    def get_field_description(self, obj_type: str, python_name: str) -> FieldDescription | None:
+        """Return the FieldDescription for a field, or None if not found."""
+        desc = self.describe(obj_type)
+        for field in desc.fields:
+            if field.name == python_name:
+                return field
+        return None
 
     def get_required_fields(self, obj_type: str) -> list[str]:
-        """Return required IDF field names for an object type."""
+        """Return required field names (snake_case) for an object type."""
         return self._schema.get_required_fields(obj_type)
 
     def get_group(self, obj_type: str) -> str | None:

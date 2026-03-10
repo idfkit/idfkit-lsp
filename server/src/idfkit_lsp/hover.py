@@ -133,33 +133,32 @@ def _object_type_hover(obj_type: str, schema: SchemaCache) -> str | None:
 
 
 def _field_hover(obj_type: str, python_name: str, schema: SchemaCache) -> str | None:
-    idf_name = schema.get_field_idf_name(obj_type, python_name)
-    if not idf_name:
-        return None
-    fs = schema.get_field_schema(obj_type, idf_name)
-    if not fs:
+    field = schema.get_field_description(obj_type, python_name)
+    if not field:
         return None
 
-    lines = [f"### {obj_type} · {idf_name}", f"**Python name:** `{python_name}`", ""]
-    if "type" in fs:
-        lines.append(f"**Type:** {fs['type']}")
-    if "units" in fs:
-        lines.append(f"**Units:** {fs['units']}")
-    if "default" in fs:
-        lines.append(f"**Default:** {fs['default']}")
-    if "minimum" in fs:
-        lines.append(f"**Minimum:** {fs['minimum']}")
-    if "maximum" in fs:
-        lines.append(f"**Maximum:** {fs['maximum']}")
-    if "exclusiveMinimum" in fs:
-        lines.append(f"**Exclusive minimum:** {fs['exclusiveMinimum']}")
-    if "exclusiveMaximum" in fs:
-        lines.append(f"**Exclusive maximum:** {fs['exclusiveMaximum']}")
-    if "enum" in fs:
-        lines.append(f"**Options:** {', '.join(str(v) for v in fs['enum'])}")
-    if "note" in fs:
+    lines = [f"### {obj_type} · `{python_name}`", ""]
+    if field.field_type:
+        lines.append(f"**Type:** {field.field_type}")
+    if field.units:
+        lines.append(f"**Units:** {field.units}")
+    if field.default is not None:
+        lines.append(f"**Default:** {field.default}")
+    if field.minimum is not None:
+        lines.append(f"**Minimum:** {field.minimum}")
+    if field.maximum is not None:
+        lines.append(f"**Maximum:** {field.maximum}")
+    if field.exclusive_minimum is not None:
+        lines.append(f"**Exclusive minimum:** {field.exclusive_minimum}")
+    if field.exclusive_maximum is not None:
+        lines.append(f"**Exclusive maximum:** {field.exclusive_maximum}")
+    if field.enum_values:
+        lines.append(f"**Options:** {', '.join(str(v) for v in field.enum_values)}")
+    if field.is_reference:
+        lines.append("**Reference field:** yes")
+    if field.note:
         lines.append("")
-        lines.append(fs["note"])
+        lines.append(field.note)
     return "\n".join(lines)
 
 

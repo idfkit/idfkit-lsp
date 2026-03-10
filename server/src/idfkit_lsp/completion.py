@@ -152,14 +152,13 @@ def _keyword_arg_completions(
 ) -> list[types.CompletionItem]:
     """Completion items for keyword arguments in doc.add() calls."""
     python_names = schema.get_field_python_names(obj_type)
-    required_idf = set(schema.get_required_fields(obj_type))
+    required = set(schema.get_required_fields(obj_type))
     prefix_lower = prefix.lower()
     items: list[types.CompletionItem] = []
     for pname in python_names:
         if not pname.lower().startswith(prefix_lower):
             continue
-        idf_name = schema.get_field_idf_name(obj_type, pname)
-        is_required = idf_name in required_idf if idf_name else False
+        is_required = pname in required
         items.append(
             types.CompletionItem(
                 label=pname,
@@ -174,26 +173,27 @@ def _keyword_arg_completions(
 
 def _make_field_item(python_name: str, obj_type: str, schema: SchemaCache) -> types.CompletionItem:
     """Create a CompletionItem for a single field with inline docs."""
-    idf_name = schema.get_field_idf_name(obj_type, python_name)
     detail_parts: list[str] = []
     doc_parts: list[str] = []
 
-    if idf_name:
-        fs = schema.get_field_schema(obj_type, idf_name)
-        if fs:
-            if "type" in fs:
-                detail_parts.append(fs["type"])
-            if "units" in fs:
-                detail_parts.append(f"[{fs['units']}]")
-            if "default" in fs:
-                doc_parts.append(f"**Default:** {fs['default']}")
-            if "enum" in fs:
-                vals = fs["enum"]
-                doc_parts.append(f"**Options:** {', '.join(str(v) for v in vals[:8])}")
-            if "minimum" in fs:
-                doc_parts.append(f"**Min:** {fs['minimum']}")
-            if "maximum" in fs:
-                doc_parts.append(f"**Max:** {fs['maximum']}")
+    field = schema.get_field_description(obj_type, python_name)
+    if field:
+        if field.field_type:
+            detail_parts.append(field.field_type)
+        if field.units:
+            detail_parts.append(f"[{field.units}]")
+        if field.default is not None:
+            doc_parts.append(f"**Default:** {field.default}")
+        if field.enum_values:
+            doc_parts.append(f"**Options:** {', '.join(str(v) for v in field.enum_values[:8])}")
+        if field.minimum is not None:
+            doc_parts.append(f"**Min:** {field.minimum}")
+        if field.maximum is not None:
+            doc_parts.append(f"**Max:** {field.maximum}")
+        if field.exclusive_minimum is not None:
+            doc_parts.append(f"**Exclusive min:** {field.exclusive_minimum}")
+        if field.exclusive_maximum is not None:
+            doc_parts.append(f"**Exclusive max:** {field.exclusive_maximum}")
 
     return types.CompletionItem(
         label=python_name,

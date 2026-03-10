@@ -29,26 +29,92 @@ zone.x_origin  # ← field attribute completion + hover docs
 
 ## Installation
 
-### Server
+Install the LSP server into the Python environment you use for idfkit, then install the VS Code extension.
 
-Requires [uv](https://docs.astral.sh/uv/):
+### 1. Install the LSP server
 
 ```bash
-make install        # or: cd server && uv sync --extra dev
+pip install idfkit-lsp
 ```
 
-### Client
+Or install from source:
 
 ```bash
+git clone https://github.com/samuelduchesne/idfkit-lsp.git
+cd idfkit-lsp/server
+pip install .
+```
+
+Verify the server is installed:
+
+```bash
+python -m idfkit_lsp --help
+```
+
+### 2. Install the VS Code extension
+
+Build and install the extension locally:
+
+```bash
+cd idfkit-lsp
 npm install
 npm run compile
+npx @vscode/vsce package       # creates idfkit-lsp-0.1.0.vsix
+code --install-extension idfkit-lsp-0.1.0.vsix
 ```
 
-### Running in VS Code
+### 3. Configure the Python path
 
-1. Open this repository in VS Code
-2. Press **F5** to launch the Extension Development Host
-3. Open a Python file that uses idfkit — the language server activates automatically
+If your idfkit Python environment is not the default `python3`, set the interpreter path in VS Code:
+
+1. Open **Settings** (`Ctrl+,` / `Cmd+,`)
+2. Search for `idfkitLsp.pythonPath`
+3. Set it to the full path of the Python interpreter with idfkit-lsp installed (e.g., `/path/to/venv/bin/python`)
+
+Restart VS Code or run the **idfkit: Restart Language Server** command to apply changes.
+
+## Development
+
+### Running from source in VS Code
+
+Requires [uv](https://docs.astral.sh/uv/) and Node.js.
+
+1. Clone the repository and install dependencies:
+   ```bash
+   make install        # or: cd server && uv sync --extra dev
+   npm install
+   npm run compile
+   ```
+2. Open this repository in VS Code
+3. Press **F5** to launch the Extension Development Host
+4. Open a Python file that uses idfkit — the language server activates automatically
+
+### Make targets
+
+```bash
+make install            # install with uv
+make check              # run all checks (lint, format, typecheck, test)
+make fix                # auto-fix lint + format issues
+make pre-commit-install # install git pre-commit hooks
+```
+
+| Command | Description |
+|---|---|
+| `make lint` | Run ruff linter |
+| `make format` | Check formatting |
+| `make format-fix` | Auto-format code |
+| `make typecheck` | Run pyright |
+| `make test` | Run pytest |
+| `make check` | All of the above |
+
+### Testing
+
+```bash
+make test       # or: cd server && uv run pytest
+make test-v     # verbose output
+```
+
+The test suite covers the analyzer, completion, hover, signature help, and end-to-end LSP integration.
 
 ## Configuration
 
@@ -74,33 +140,6 @@ Use the **idfkit: Restart Language Server** command to reload after configuratio
 │       ├── schema_cache.py    # EnergyPlus schema wrapper
 │       └── document_state.py  # Per-document state management
 ```
-
-## Development
-
-```bash
-make install            # install with uv
-make check              # run all checks (lint, format, typecheck, test)
-make fix                # auto-fix lint + format issues
-make pre-commit-install # install git pre-commit hooks
-```
-
-| Command | Description |
-|---|---|
-| `make lint` | Run ruff linter |
-| `make format` | Check formatting |
-| `make format-fix` | Auto-format code |
-| `make typecheck` | Run pyright |
-| `make test` | Run pytest |
-| `make check` | All of the above |
-
-## Testing
-
-```bash
-make test       # or: cd server && uv run pytest
-make test-v     # verbose output
-```
-
-The test suite covers the analyzer, completion, hover, signature help, and end-to-end LSP integration.
 
 ## License
 

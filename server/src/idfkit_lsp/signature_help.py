@@ -88,7 +88,7 @@ def build_signature_help(
 
     # Object-type-specific signature
     desc = schema.describe(obj_type)
-    required_idf = set(schema.get_required_fields(obj_type))
+    required_fields = set(schema.get_required_fields(obj_type))
 
     param_labels: list[str] = [f'"{obj_type}"']
     params: list[types.ParameterInformation] = [
@@ -127,7 +127,7 @@ def build_signature_help(
                 )
             )
 
-    optional_count = len(desc.fields) - len(required_idf)
+    optional_count = len(desc.fields) - len(required_fields)
     param_labels.append("**kwargs")
     params.append(
         types.ParameterInformation(
