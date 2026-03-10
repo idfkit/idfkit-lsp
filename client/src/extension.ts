@@ -21,8 +21,15 @@ function resolvePythonPath(extensionPath: string): string {
     const config = vscode.workspace.getConfiguration("idfkitLsp");
     const configured = config.get<string>("pythonPath", "python3");
 
-    // If user explicitly configured a non-default path, use it as-is
+    // If user explicitly configured a non-default path, resolve it
     if (configured !== "python3") {
+        // Resolve workspace-relative paths (e.g., "./venv/bin/python")
+        if (!path.isAbsolute(configured) && configured.startsWith(".")) {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (workspaceFolder) {
+                return path.join(workspaceFolder.uri.fsPath, configured);
+            }
+        }
         return configured;
     }
 

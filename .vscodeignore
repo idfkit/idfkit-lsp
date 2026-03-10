@@ -1,0 +1,24 @@
+# Development files
+.git/**
+.github/**
+.vscode/**
+CLAUDE.md
+Makefile
+
+# Client source (compiled output is in client/dist/)
+client/src/**
+client/node_modules/**
+client/tsconfig.json
+
+# Server development artifacts
+server/.venv/**
+server/tests/**
+server/uv.lock
+server/.python-version
+
+# Build artifacts
+node_modules/**
+**/__pycache__/**
+**/.pytest_cache/**
+**/.ruff_cache/**
+*.vsix

@@ -50,11 +50,12 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "compile": "cd client && npm run build",
-        "watch": "cd client && npm run watch"
+        "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch"
     },
     "devDependencies": {
         "@types/vscode": "^1.78.0",
+        "esbuild": "^0.27.3",
         "typescript": "^5.0.0"
     }
 }
