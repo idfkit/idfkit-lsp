@@ -9,7 +9,7 @@ description = "Language Server Protocol implementation for idfkit EnergyPlus lib
 requires-python = ">=3.10"
 license = "MIT"
 dependencies = [
-    "idfkit>=0.4.0",
+    "idfkit>=0.5.0",
 ]
 
 [project.scripts]
@@ -20,7 +20,9 @@ server = [
     "pygls>=2.0",
     "lsprotocol",
 ]
-lint = []  # no extra deps beyond idfkit
+lint = [
+    "tomli>=2.0; python_version < '3.11'",
+]
 dev = [
     "pygls>=2.0",
     "lsprotocol",

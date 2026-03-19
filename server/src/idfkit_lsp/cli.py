@@ -6,8 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from idfkit import ENERGYPLUS_VERSIONS
-
+from idfkit_lsp.config import load_config
 from idfkit_lsp.linter import LintDiagnostic, lint_paths
 
 
@@ -35,9 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "paths",
-        nargs="+",
+        nargs="*",
         type=Path,
-        help="Python files or directories to check",
+        help="Python files or directories to check (default: from config or '.')",
     )
     parser.add_argument(
         "--versions",
@@ -57,21 +56,40 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Only check versions <= this (e.g. '25.2.0')",
     )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        help="Glob pattern to exclude (repeatable, e.g. --exclude 'tests/*')",
+    )
+    parser.add_argument(
+        "--no-gitignore",
+        action="store_true",
+        default=False,
+        help="Disable gitignore-aware file discovery (use plain rglob)",
+    )
 
     args = parser.parse_args(argv)
 
-    # Determine target versions
-    versions: list[tuple[int, int, int]] | None = None
+    # Build CLI overrides
+    cli_versions: tuple[tuple[int, int, int], ...] | None = None
     if args.versions:
-        versions = [_parse_version(v) for v in args.versions.split(",")]
-    elif args.min_version or args.max_version:
-        versions = list(ENERGYPLUS_VERSIONS)
-        if args.min_version:
-            versions = [v for v in versions if v >= args.min_version]
-        if args.max_version:
-            versions = [v for v in versions if v <= args.max_version]
+        cli_versions = tuple(_parse_version(v) for v in args.versions.split(","))
 
-    diagnostics = lint_paths(args.paths, versions=versions)
+    cli_paths = tuple(args.paths) if args.paths else None
+    cli_exclude = tuple(args.exclude) if args.exclude else None
+    cli_respect_gitignore: bool | None = False if args.no_gitignore else None
+
+    config = load_config(
+        cli_paths=cli_paths,
+        cli_versions=cli_versions,
+        cli_min_version=args.min_version,
+        cli_max_version=args.max_version,
+        cli_exclude=cli_exclude,
+        cli_respect_gitignore=cli_respect_gitignore,
+    )
+
+    diagnostics = lint_paths(config)
 
     for d in diagnostics:
         print(_format_diagnostic(d), file=sys.stderr)

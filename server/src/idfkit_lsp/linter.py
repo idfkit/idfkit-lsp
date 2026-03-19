@@ -17,6 +17,8 @@ from idfkit_lsp.schema_cache import SchemaCache
 if typing.TYPE_CHECKING:
     from pathlib import Path
 
+    from idfkit_lsp.config import LintConfig
+
 
 @dataclass(frozen=True)
 class LintDiagnostic:
@@ -127,17 +129,13 @@ def lint_file(
     return lint_source(source, path, versions=versions)
 
 
-def lint_paths(
-    paths: list[Path],
-    *,
-    versions: list[tuple[int, int, int]] | None = None,
-) -> list[LintDiagnostic]:
-    """Lint multiple files or directories (recursively finds .py files in directories)."""
+def lint_paths(config: LintConfig) -> list[LintDiagnostic]:
+    """Lint files discovered via *config* for cross-version compatibility."""
+    from idfkit_lsp.config import discover_files
+
+    files = discover_files(config)
+    versions = list(config.versions) if config.versions else None
     all_diagnostics: list[LintDiagnostic] = []
-    for path in paths:
-        if path.is_dir():
-            for py_file in sorted(path.rglob("*.py")):
-                all_diagnostics.extend(lint_file(py_file, versions=versions))
-        elif path.suffix == ".py":
-            all_diagnostics.extend(lint_file(path, versions=versions))
+    for py_file in files:
+        all_diagnostics.extend(lint_file(py_file, versions=versions))
     return all_diagnostics
