@@ -130,6 +130,41 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         )
     );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            "idfkitLsp.openDocumentation",
+            async () => {
+                const objectType = await vscode.window.showInputBox({
+                    prompt: "EnergyPlus object type",
+                    placeHolder: "e.g. Zone, Material, BuildingSurface:Detailed",
+                });
+                if (!objectType || !client) return;
+                try {
+                    const url = await client.sendRequest<string | null>(
+                        "workspace/executeCommand",
+                        {
+                            command: "idfkit.openDocumentation",
+                            arguments: [objectType],
+                        }
+                    );
+                    if (url) {
+                        await vscode.env.openExternal(vscode.Uri.parse(url));
+                    } else {
+                        vscode.window.showWarningMessage(
+                            `No documentation found for "${objectType}".`
+                        );
+                    }
+                } catch (err: unknown) {
+                    const msg =
+                        err instanceof Error ? err.message : String(err);
+                    vscode.window.showErrorMessage(
+                        `Failed to open documentation: ${msg}`
+                    );
+                }
+            }
+        )
+    );
 }
 
 export function deactivate(): Thenable<void> | undefined {

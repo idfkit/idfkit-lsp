@@ -6,6 +6,18 @@
         "build": "tsc -p .",
         "watch": "tsc -p . --watch"
     },
+    "contributes": {
+        "commands": [
+            {
+                "command": "idfkitLsp.restartServer",
+                "title": "idfkit: Restart Language Server"
+            },
+            {
+                "command": "idfkitLsp.openDocumentation",
+                "title": "idfkit: Open Documentation"
+            }
+        ]
+    },
     "dependencies": {
         "vscode-languageclient": "^9.0.0"
     },

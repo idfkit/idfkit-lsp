@@ -192,6 +192,32 @@ def on_hover(params: types.HoverParams) -> types.Hover | None:
 
 
 # ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+
+@server.command("idfkit.openDocumentation")
+def on_open_documentation(args: list[object]) -> str | None:
+    if _schema is None:
+        return None
+
+    obj_type = str(args[0]) if args else ""
+    if not obj_type:
+        return None
+
+    try:
+        from idfkit.docs import io_reference_url
+
+        result = io_reference_url(obj_type, _schema.version, _schema.raw_schema)
+        if result:
+            server.window_show_document(types.ShowDocumentParams(uri=result.url, external=True))
+            return result.url
+    except Exception:
+        log.warning("Failed to open documentation for %s", obj_type, exc_info=True)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Signature Help
 # ---------------------------------------------------------------------------
 
