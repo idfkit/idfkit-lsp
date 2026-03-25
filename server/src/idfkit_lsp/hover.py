@@ -129,6 +129,12 @@ def _object_type_hover(obj_type: str, schema: SchemaCache) -> str | None:
             lines.append(f"- `{fname}`")
         lines.append("")
     lines.append(f"*{len(desc.fields)} total fields*")
+
+    doc_url = _docs_link(obj_type, schema)
+    if doc_url:
+        lines.append("")
+        lines.append(doc_url)
+
     return "\n".join(lines)
 
 
@@ -159,6 +165,12 @@ def _field_hover(obj_type: str, python_name: str, schema: SchemaCache) -> str | 
     if field.note:
         lines.append("")
         lines.append(field.note)
+
+    doc_url = _docs_link(obj_type, schema)
+    if doc_url:
+        lines.append("")
+        lines.append(doc_url)
+
     return "\n".join(lines)
 
 
@@ -180,3 +192,16 @@ def _variable_hover(
             lines.append("")
             lines.append(desc.memo)
     return "\n".join(lines)
+
+
+def _docs_link(obj_type: str, schema: SchemaCache) -> str | None:
+    """Build a clickable markdown link to docs.idfkit.com for an object type."""
+    try:
+        from idfkit.docs import io_reference_url
+
+        result = io_reference_url(obj_type, schema.version, schema.raw_schema)
+        if result:
+            return f"[Open documentation]({result.url})"
+    except Exception:
+        log.debug("Failed to build docs URL for %s", obj_type, exc_info=True)
+    return None
