@@ -64,6 +64,8 @@ class TestHoverContent:
         assert content is not None
         assert "Zone" in content
         assert "Thermal Zones and Surfaces" in content
+        assert "docs.idfkit.com" in content
+        assert "[Open documentation]" in content
 
     def test_field_content(self, schema: SchemaCache) -> None:
         bindings: dict[str, InferredType] = {}
@@ -77,6 +79,7 @@ class TestHoverContent:
         assert "x_origin" in content
         assert "number" in content
         assert "m" in content  # units
+        assert "[Open documentation]" in content
 
     def test_variable_content(self, schema: SchemaCache) -> None:
         bindings = {"doc": InferredType(IdfKitType.DOCUMENT)}
