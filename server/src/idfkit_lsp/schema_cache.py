@@ -17,6 +17,7 @@ class SchemaCache:
     """Wraps an EpJSONSchema and pre-computes lookup structures for the LSP."""
 
     def __init__(self, version: tuple[int, int, int] = LATEST_VERSION) -> None:
+        self._version = version
         self._schema: EpJSONSchema = get_schema(version)
         self._object_types: list[str] = self._schema.object_types
         # Lowercase → canonical mapping for case-insensitive matching
@@ -26,6 +27,16 @@ class SchemaCache:
             ".".join(str(v) for v in version),
             len(self._object_types),
         )
+
+    @property
+    def version(self) -> tuple[int, int, int]:
+        """The EnergyPlus version this cache was loaded for."""
+        return self._version
+
+    @property
+    def raw_schema(self) -> EpJSONSchema:
+        """The underlying EpJSONSchema instance."""
+        return self._schema
 
     @property
     def object_types(self) -> list[str]:
