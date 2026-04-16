@@ -1,6 +1,6 @@
 # idfkit Language Server
 
-A Language Server Protocol (LSP) implementation that provides intelligent editing support for Python files using the [idfkit](https://github.com/samuelduchesne/idfkit) EnergyPlus library. Ships as a VS Code extension.
+A Language Server Protocol (LSP) implementation that provides intelligent editing support for Python files using the [idfkit](https://github.com/idfkit/idfkit) EnergyPlus library. Ships as a VS Code extension.
 
 ## Features
 
@@ -25,7 +25,7 @@ zone.x_origin  # ← field attribute completion + hover docs
 
 - Python 3.10+
 - VS Code 1.78+
-- [idfkit](https://github.com/samuelduchesne/idfkit) installed in the Python environment
+- [idfkit](https://github.com/idfkit/idfkit) installed in the Python environment
 
 ## Installation
 
@@ -40,7 +40,7 @@ pip install idfkit-lsp
 Or install from source:
 
 ```bash
-git clone https://github.com/samuelduchesne/idfkit-lsp.git
+git clone https://github.com/idfkit/idfkit-lsp.git
 cd idfkit-lsp/server
 pip install .
 ```

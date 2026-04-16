@@ -7,7 +7,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/samuelduchesne/idfkit-lsp"
+        "url": "https://github.com/idfkit/idfkit-lsp"
     },
     "engines": {
         "vscode": "^1.78.0"
