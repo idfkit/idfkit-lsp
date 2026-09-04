@@ -87,9 +87,15 @@ function documentSelector(
 function resolvePythonPath(extensionPath: string): string {
     const configured = vscode.workspace
         .getConfiguration("idfkitLsp")
-        .get<string>("pythonPath", "python3");
+        .get<string>("pythonPath", "python3")
+        .trim();
 
-    if (configured !== "python3") {
+    // Empty means unset, which is the convention `nodePath` below already uses. Clearing the
+    // field in the settings UI leaves an empty string, and a user who cleared it is asking for
+    // the default rather than for an empty command. Treating it as a path hands the language
+    // client a configuration it rejects, which reports itself as a broken extension instead of
+    // as a setting to fix.
+    if (configured !== "" && configured !== "python3") {
         if (!path.isAbsolute(configured) && configured.startsWith(".")) {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (workspaceFolder) {
@@ -123,7 +129,8 @@ function resolvePythonPath(extensionPath: string): string {
 function resolveNodePath(): { command: string; useElectronNode: boolean } {
     const configured = vscode.workspace
         .getConfiguration("idfkitLsp")
-        .get<string>("nodePath", "");
+        .get<string>("nodePath", "")
+        .trim();
     if (configured) {
         return { command: configured, useElectronNode: false };
     }
