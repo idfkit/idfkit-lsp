@@ -23,10 +23,13 @@
  * and not a placeholder: at that instant no schema had been resolved, which is the third of the
  * three absences the contract requires this repository to carry without flattening.
  *
- * WHY THERE IS NO PROSE
+ * WHY PROSE IS LOADED HERE AND NOT REACHED FOR
  *
- * A prose pool is loaded by whoever wants prose in their offers, and this server loads none yet.
- * The contract's rule is that offers then carry no prose, not that this repository supplies some.
+ * The schema's explanatory sentences are indexed by the slim schema and held in a separate pool,
+ * off the parse path, because most callers never want them. An editor is the caller that does.
+ * The pool is loaded on the same terms as a schema, for the same reason: reading it is
+ * asynchronous and every answer that uses it is synchronous, so it is loaded when a document
+ * arrives and read when a request is answered. One pool serves every version, so it is loaded once.
  */
 
 import type {
@@ -73,6 +76,10 @@ interface SchemaBundleSurface {
   load(version: string): Promise<unknown>;
   loaded(version: string): Schema | undefined;
   latest(): Promise<string>;
+  /** The explanatory prose the manifests index into. One pool, not one per version. */
+  loadProse(): Promise<ProsePool>;
+  /** The pool if it has been loaded, or nothing. Synchronous, which is why it is usable here. */
+  prose(): ProsePool | undefined;
 }
 
 interface NodeSurface {
@@ -183,7 +190,9 @@ export async function loadInputs(
     },
 
     proseFor(): ProsePool | undefined {
-      return undefined;
+      // Whatever has been loaded, and nothing where nothing has. An explanation without prose
+      // reports the absence; it is never filled in from the field's name.
+      return bundle.prose();
     },
   };
 
@@ -196,14 +205,21 @@ export async function loadInputs(
    * which is one of the three absences the contract requires this repository to carry.
    */
   async function warm(text: string): Promise<void> {
+    // The pool is version-independent and idempotent to ask for, so it is requested alongside the
+    // first schema rather than on a path of its own. A failure to read it leaves prose absent,
+    // which is a state every answer already carries; it is not a reason to fail the schema too.
+    const withProse = bundle.prose() === undefined ? bundle.loadProse().catch(() => undefined) : undefined;
+
     const declared = core.getIdfVersion(text);
-    if (declared === undefined || bundle.loaded(declared) !== undefined) return;
-    requested.add(declared);
-    try {
-      await bundle.load(declared);
-    } catch {
-      // Left unresolved on purpose. See above.
+    if (declared !== undefined && bundle.loaded(declared) === undefined) {
+      requested.add(declared);
+      try {
+        await bundle.load(declared);
+      } catch {
+        // Left unresolved on purpose. See above.
+      }
     }
+    await withProse;
   }
 
   return { ok: true, inputs, warm };

@@ -20,6 +20,8 @@ const UNSERVED = '1.0.0';
 interface FakeOptions {
   /** What `getIdfVersion` reports. Undefined stands for text with no determinable version. */
   readonly version?: string | undefined;
+  /** Whether reading the prose pool fails, standing for a bundle that ships no prose. */
+  readonly proseThrows?: boolean;
   /** Whether parsing throws, standing for text too broken for even a lenient read. */
   readonly parseThrows?: boolean;
   readonly tokens?: readonly ClassifiedRegion[];
@@ -43,7 +45,14 @@ function fakeLibrary(options: FakeOptions = {}) {
     classify: () => options.tokens ?? [{ start: 0, end: 3, kind: 'typeName' }],
     parseIdf,
   };
+  let pool: readonly string[] | undefined;
   const bundle = {
+    loadProse: vi.fn(async () => {
+      if (options.proseThrows === true) throw new Error('no prose in this bundle');
+      pool = ['the first sentence', 'the second'];
+      return pool;
+    }),
+    prose: () => pool,
     load: vi.fn(async (version: string) => {
       if (version !== SERVED) throw new Error(`no such version ${version}`);
       const schema = { version };
@@ -174,8 +183,30 @@ describe('reading the model behind the text', () => {
 });
 
 describe('prose', () => {
-  it("supplies none, because none is loaded and inventing some is not this repository's job", async () => {
+  it('supplies none before anything has been loaded', async () => {
     const { inputs } = await resolved();
     expect(inputs.proseFor('any text')).toBeUndefined();
+  });
+
+  it('supplies the pool the bundle loaded once a document has arrived', async () => {
+    const { inputs, warm } = await resolved();
+    await warm('any text');
+    expect(inputs.proseFor('any text')).toEqual(['the first sentence', 'the second']);
+  });
+
+  it('asks for the pool once however many documents arrive', async () => {
+    const { warm, bundle } = await resolved();
+    await warm('any text');
+    await warm('another text');
+    await warm('a third text');
+    expect(bundle.loadProse).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves prose absent when the bundle carries none, and resolves the schema anyway', async () => {
+    const { inputs, warm } = await resolved({ proseThrows: true });
+    await expect(warm('any text')).resolves.toBeUndefined();
+    expect(inputs.proseFor('any text')).toBeUndefined();
+    // The failure that belongs to prose does not take the schema down with it.
+    expect(inputs.schemaFor('any text')).toBeDefined();
   });
 });
