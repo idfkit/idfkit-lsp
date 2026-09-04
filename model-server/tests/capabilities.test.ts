@@ -326,29 +326,26 @@ describe('the declaration this repository actually ships', () => {
     expect([...presentRequests(model)]).toContain('idfkit-lsp/versions');
   });
 
-  // The five answers about model text wait on the same unpublished component, so each states what
-  // closes it rather than being advertised and then declined at request time (Principle IV).
+  // The five answers about model text, plus the push fallback, are answered from the language
+  // service. They are declared present because handlers answer them; whether the component behind
+  // them resolves is a runtime fact, and `planAdvertisement` withholds each one when it does not.
+  // A state carrying a reason, an instead or a tracked item would be a state that is not present.
   for (const request of [
     'textDocument/semanticTokens/full',
     'textDocument/diagnostic',
+    'textDocument/publishDiagnostics',
     'textDocument/completion',
     'textDocument/hover',
     'textDocument/definition',
   ]) {
-    it(`states ${request} as temporarily absent, tracking the language service`, () => {
+    it(`states ${request} as present, with nothing qualifying it`, () => {
       const capability = capabilityFor(model, request);
-      expect(capability?.state).toBe('absent_temporary');
-      expect(capability?.tracked).toContain('@idfkit/language');
+      expect(capability?.state).toBe('present');
+      expect(capability?.tracked).toBeUndefined();
       expect(capability?.reason).toBeUndefined();
       expect(capability?.instead).toBeUndefined();
     });
   }
-
-  it('tracks the push fallback on the same component as the diagnostic request', () => {
-    const capability = capabilityFor(model, 'textDocument/publishDiagnostics');
-    expect(capability?.state).toBe('absent_temporary');
-    expect(capability?.tracked).toContain('@idfkit/language');
-  });
 
   it('states signature help as permanently absent, with a reason and somewhere else to look', () => {
     const capability = capabilityFor(model, 'textDocument/signatureHelp');
@@ -358,7 +355,17 @@ describe('the declaration this repository actually ships', () => {
     expect(capability?.tracked).toBeUndefined();
   });
 
-  it('advertises nothing it cannot answer today', () => {
-    expect([...presentRequests(model)]).toEqual(['idfkit-lsp/versions']);
+  it('marks present exactly the requests this server has a handler for', () => {
+    expect([...presentRequests(model)].sort()).toEqual(
+      [
+        'idfkit-lsp/versions',
+        'textDocument/completion',
+        'textDocument/definition',
+        'textDocument/diagnostic',
+        'textDocument/hover',
+        'textDocument/publishDiagnostics',
+        'textDocument/semanticTokens/full',
+      ].sort(),
+    );
   });
 });

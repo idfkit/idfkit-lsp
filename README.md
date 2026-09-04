@@ -44,12 +44,12 @@ Runtime: Node 18 or newer, ESM, launched on the editor's own runtime. Serves `id
 | Request | State | Note |
 | --- | --- | --- |
 | `idfkit-lsp/versions` | present |   |
-| `textDocument/semanticTokens/full` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give. |
-| `textDocument/diagnostic` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give. |
-| `textDocument/publishDiagnostics` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The fallback path for a client that cannot request diagnostics, gated on the same component. |
-| `textDocument/completion` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give. |
-| `textDocument/hover` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give. |
-| `textDocument/definition` | absent, temporary | Tracked: @idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give. |
+| `textDocument/semanticTokens/full` | present |   |
+| `textDocument/diagnostic` | present |   |
+| `textDocument/publishDiagnostics` | present |   |
+| `textDocument/completion` | present |   |
+| `textDocument/hover` | present |   |
+| `textDocument/definition` | present |   |
 | `textDocument/signatureHelp` | absent, permanent | Signature help describes a call in a programming language. Model text has no calls, so there is no signature to help with. Instead: Hover on a field, once the language service ships, reports what the schema says about it. |
 | `workspace/executeCommand` | absent, permanent | The one command this repository exposes resolves a documentation address for a Python object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor. Instead: The source server, which answers workspace/executeCommand for the documentation lookup. |
 

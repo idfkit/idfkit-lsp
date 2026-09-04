@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import {
   CompletionRequest,
   DefinitionRequest,
+  DiagnosticRefreshRequest,
   DocumentDiagnosticRequest,
   ErrorCodes,
   HoverRequest,
@@ -59,6 +60,7 @@ import {
 } from './handlers/diagnostics.js';
 import { hoverFor } from './handlers/hover.js';
 import { TokenLegend, semanticTokensFor } from './handlers/semanticTokens.js';
+import { loadInputs } from './inputs.js';
 import { LineIndex } from './positions.js';
 import { loadLanguageService } from './service.js';
 
@@ -72,6 +74,7 @@ import type {
   Schema,
 } from './language-service.js';
 import type { PositionEncoding } from './positions.js';
+import type { Warm } from './inputs.js';
 import type { LanguageServiceLoad, SubpathImport } from './service.js';
 import type {
   ClientCapabilities,
@@ -612,10 +615,18 @@ class ModelServer {
   readonly #declared: ServerDeclaration;
   readonly #documents = new ModelDocuments();
   readonly #legend = new TokenLegend();
-  readonly #inputs: CallerInputs;
+  /**
+   * Not readonly, because resolving these needs a dynamic import and so cannot happen in a
+   * constructor. A caller that supplies its own keeps it; startup replaces the default otherwise.
+   */
+  #inputs: CallerInputs;
+  /** The asynchronous half of `schemaFor`, awaited when a document arrives. */
+  #warm: Warm = async () => {};
+  readonly #inputsSupplied: boolean;
 
   #service: LanguageService | undefined;
   #absence: string | undefined;
+  #inputsAbsence: string | undefined;
   #advertisement: Advertisement | undefined;
   #publishOnChange = false;
   #dynamicSemanticTokens = false;
@@ -627,6 +638,7 @@ class ModelServer {
     this.#declaration = options.declaration ?? loadDeclaration();
     this.#declared = serverById(this.#declaration, SERVER_ID);
     this.#inputs = options.inputs ?? NOTHING_RESOLVED;
+    this.#inputsSupplied = options.inputs !== undefined;
   }
 
   listen(): void {
@@ -660,6 +672,21 @@ class ModelServer {
       this.#service = load.service;
     } else {
       this.#absence = load.message;
+    }
+
+    // The service answers from a schema it does not resolve, so the inputs are loaded on the same
+    // terms and in the same breath. A caller that supplied its own keeps them: that is the seam
+    // the tests drive, and startup must not overwrite what a caller chose.
+    if (!this.#inputsSupplied) {
+      const resolved = await loadInputs((version) => this.#schemaArrived(version));
+      if (resolved.ok) {
+        this.#inputs = resolved.inputs;
+        this.#warm = resolved.warm;
+      } else {
+        // Reported through the same channel as the service's absence, and separately from it: the
+        // shared name and its optional component are two installs and two sentences.
+        this.#inputsAbsence = resolved.message;
+      }
     }
 
     const advertisement = planAdvertisement(this.#declared, {
@@ -714,6 +741,15 @@ class ModelServer {
       });
     }
 
+    const inputsAbsence = this.#inputsAbsence;
+    if (inputsAbsence !== undefined) {
+      this.#connection.console.warn(inputsAbsence);
+      void this.#connection.sendNotification(ShowMessageNotification.type, {
+        type: MessageType.Warning,
+        message: inputsAbsence,
+      });
+    }
+
     const tokensRegistered =
       advertisement?.registered.includes(SemanticTokensRequest.method) === true;
     if (this.#dynamicSemanticTokens && tokensRegistered) {
@@ -722,7 +758,7 @@ class ModelServer {
   }
 
   #synchronise(): void {
-    this.#connection.onDidOpenTextDocument((params) => {
+    this.#connection.onDidOpenTextDocument(async (params) => {
       const { textDocument } = params;
       if (!serves(this.#declared, textDocument.uri)) {
         this.#connection.console.info(
@@ -737,16 +773,24 @@ class ModelServer {
         textDocument.version,
         textDocument.text,
       );
+      // Awaited here rather than left to race the first request. The connection dispatches
+      // messages in order and waits on a handler that returns a promise, so a request about this
+      // document queues behind the schema it needs. Without this the first answer after an open
+      // is "no schema" for no reason a user could see, and the second one is right.
+      await this.#warm(document.text);
       this.#publish(document);
     });
 
-    this.#connection.onDidChangeTextDocument((params) => {
+    this.#connection.onDidChangeTextDocument(async (params) => {
       const document = this.#documents.update(
         params.textDocument.uri,
         params.contentChanges,
         params.textDocument.version,
       );
       if (document === undefined) return;
+      // An edit can change the declared version, so the same wait applies. It returns immediately
+      // for a version already in hand, which is every keystroke after the first.
+      await this.#warm(document.text);
       this.#publish(document);
     });
 
@@ -764,6 +808,27 @@ class ModelServer {
 
   // --- registration ---
 
+  /**
+   * Wait for the schema this document needs, then answer.
+   *
+   * `schemaFor` is synchronous because every answer is, and loading a schema reads from disk. The
+   * two are reconciled here: a request about a document whose version has never been loaded waits
+   * for that one load and then gets a real answer, instead of being told no schema was resolved
+   * when the truth is that none had been resolved yet. Awaiting on the open notification is not
+   * enough on its own, because the connection dispatches the request that follows without waiting
+   * for the notification's handler to finish.
+   *
+   * Once a version is in hand this returns on the same tick, so it costs a keystroke nothing.
+   */
+  async #ready<P extends { textDocument: { uri: string } }, R>(
+    params: P,
+    answer: (params: P) => R,
+  ): Promise<R> {
+    const text = this.#documents.textOf(params.textDocument.uri);
+    if (text !== undefined) await this.#warm(text);
+    return answer(params);
+  }
+
   #install(advertisement: Advertisement): void {
     for (const request of advertisement.registered) {
       switch (request) {
@@ -772,25 +837,27 @@ class ModelServer {
           break;
         case SemanticTokensRequest.method:
           this.#connection.onRequest(request, (params: SemanticTokensParams) =>
-            this.#semanticTokens(params),
+            this.#ready(params, (ready) => this.#semanticTokens(ready)),
           );
           break;
         case DocumentDiagnosticRequest.method:
           this.#connection.onRequest(request, (params: DocumentDiagnosticParams) =>
-            this.#diagnostic(params),
+            this.#ready(params, (ready) => this.#diagnostic(ready)),
           );
           break;
         case CompletionRequest.method:
           this.#connection.onRequest(request, (params: CompletionParams) =>
-            this.#completion(params),
+            this.#ready(params, (ready) => this.#completion(ready)),
           );
           break;
         case HoverRequest.method:
-          this.#connection.onRequest(request, (params: HoverParams) => this.#hover(params));
+          this.#connection.onRequest(request, (params: HoverParams) =>
+            this.#ready(params, (ready) => this.#hover(ready)),
+          );
           break;
         case DefinitionRequest.method:
           this.#connection.onRequest(request, (params: DefinitionParams) =>
-            this.#definition(params),
+            this.#ready(params, (ready) => this.#definition(ready)),
           );
           break;
         case PublishDiagnosticsNotification.method:
@@ -899,6 +966,27 @@ class ModelServer {
     );
     if (answer.kind === 'nothing') return null;
     return this.#current(held, [...answer.locations]);
+  }
+
+  /**
+   * A schema that was not in hand has finished loading.
+   *
+   * Every request that named this version before now was answered truthfully with "no schema", so
+   * this is not a correction: it is the first moment there is anything to answer from. The client
+   * is asked to come back for what it pulls, and pushed what it does not pull. Both are the
+   * protocol's own refresh paths, and neither invents an answer here.
+   */
+  #schemaArrived(version: string): void {
+    this.#connection.console.info(
+      `schema ${version} finished loading; re-offering answers for documents that declare it`,
+    );
+    void this.#connection.sendRequest(DiagnosticRefreshRequest.type).catch(() => {
+      // A client that cannot refresh will ask again on the next edit, which costs a keystroke.
+    });
+    for (const uri of this.#documents.uris) {
+      const document = this.#documents.get(uri);
+      if (document !== undefined) this.#publish(document);
+    }
   }
 
   /** The fallback delivery, for a client that cannot request findings for itself. */

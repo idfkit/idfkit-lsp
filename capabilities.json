@@ -93,33 +93,27 @@
         },
         {
           "request": "textDocument/semanticTokens/full",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give."
+          "state": "present"
         },
         {
           "request": "textDocument/diagnostic",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give."
+          "state": "present"
         },
         {
           "request": "textDocument/publishDiagnostics",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The fallback path for a client that cannot request diagnostics, gated on the same component."
+          "state": "present"
         },
         {
           "request": "textDocument/completion",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give."
+          "state": "present"
         },
         {
           "request": "textDocument/hover",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give."
+          "state": "present"
         },
         {
           "request": "textDocument/definition",
-          "state": "absent_temporary",
-          "tracked": "@idfkit/language, feature 005 of the unification. The handler is written and its translation is tested; the component it reads from is not published, so this server declines to advertise an answer it cannot give."
+          "state": "present"
         },
         {
           "request": "textDocument/signatureHelp",

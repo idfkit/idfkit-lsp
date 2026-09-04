@@ -213,13 +213,16 @@ describe('the levels this server reports', () => {
   });
 
   it('reports no level for a library that does not resolve here', () => {
-    const absent = report.libraries.filter(
-      (library) => installedLevel(library.name) === undefined,
-    );
-    // The language service's facade is an optional peer this repository does not install, so at
-    // least one library is expected to resolve to nothing until it is published.
-    expect(absent.length).toBeGreaterThan(0);
-    for (const library of absent) expect(library.level).toBeNull();
+    // Asked with a resolver that finds nothing, so this pins the rule rather than the state of
+    // this checkout's node_modules. The facade is an optional peer: it is absent in a fresh
+    // clone and in CI, and present the moment someone links a local build of it. The rule that
+    // an unresolved library reports null holds in both, so the test must too.
+    const unresolvable = versionReport(model.id, undefined, (id: string) => {
+      throw new Error(`Cannot find module '${id}'`);
+    });
+
+    expect(unresolvable.libraries.length).toBeGreaterThan(0);
+    for (const library of unresolvable.libraries) expect(library.level).toBeNull();
   });
 });
 

@@ -64,8 +64,11 @@ function resolverError(specifier: string): Error {
 
 describe('loadLanguageService with the component absent', () => {
   it('reports rather than throws, and names what to install', async () => {
-    // No injected importer: this is the real subpath, really unresolvable here.
-    const result = await loadLanguageService();
+    // The failure is injected rather than borrowed from this checkout. Scenario 7 requires this
+    // to pass whether or not the component is installed, because it is about the path where it
+    // is not: a fresh clone and CI have it absent, and a local link of an unpublished build has
+    // it present. Reading the real subpath here would make the test an accident of node_modules.
+    const result = await loadLanguageService(() => Promise.reject(resolverError(SUBPATH)));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
@@ -75,7 +78,9 @@ describe('loadLanguageService with the component absent', () => {
   });
 
   it('does not reject, so startup has something to report', async () => {
-    await expect(loadLanguageService()).resolves.toBeDefined();
+    await expect(
+      loadLanguageService(() => Promise.reject(resolverError(SUBPATH))),
+    ).resolves.toBeDefined();
   });
 
   it("passes the guard's message through unchanged", async () => {
