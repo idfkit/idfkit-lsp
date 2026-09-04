@@ -9,10 +9,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    working-directory: server
-
 jobs:
   lint:
     name: Lint & Format
@@ -20,18 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/ruff-action@v3
         with:
-          enable-cache: true
-          cache-dependency-glob: "server/uv.lock"
+          src: server/src server/tests tools tests
 
       - uses: astral-sh/ruff-action@v3
         with:
-          src: server/src server/tests
-
-      - uses: astral-sh/ruff-action@v3
-        with:
-          src: server/src server/tests
+          src: server/src server/tests tools tests
           args: format --check
 
   typecheck:
@@ -46,11 +37,62 @@ jobs:
           cache-dependency-glob: "server/uv.lock"
 
       - run: uv sync --extra dev
+        working-directory: server
 
-      - run: uv run pyright src
+      - run: uv run pyright src ../tools ../tests/protocol
+        working-directory: server
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+        working-directory: model-server
+
+      - run: npm run typecheck
+        working-directory: model-server
+
+  declaration:
+    name: Capability declaration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - run: make check-declaration
+
+  levels:
+    name: Declared levels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - run: make check-levels
+
+  knowledge:
+    name: No knowledge in the extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - run: make check-knowledge
 
   test:
-    name: Test (Python ${{ matrix.python-version }})
+    name: Source server (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,5 +109,57 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
 
       - run: uv sync --extra dev --python ${{ matrix.python-version }}
+        working-directory: server
 
-      - run: uv run pytest -v
+      - run: uv run pytest tests -v
+        working-directory: server
+
+  test-model:
+    name: Model server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+        working-directory: model-server
+
+      - run: npm test
+        working-directory: model-server
+
+  protocol:
+    name: Protocol suite (Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: uv python install ${{ matrix.python-version }}
+
+      - run: uv sync --extra dev --python ${{ matrix.python-version }}
+        working-directory: server
+
+      # The protocol suite drives the model server too, so its bundle has to exist.
+      - run: npm ci
+        working-directory: model-server
+
+      - run: npm run build
+        working-directory: model-server
+
+      - run: uv run --project server python -m pytest tests/protocol -v -rs

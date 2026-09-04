@@ -1,0 +1,35 @@
+{
+    "name": "@idfkit/lsp-model-server",
+    "private": true,
+    "version": "0.2.0",
+    "description": "Language server for EnergyPlus model text. Translates the idfkit language service into the Language Server Protocol.",
+    "license": "MIT",
+    "type": "module",
+    "main": "./dist/main.js",
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --packages=external --sourcemap",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "vscode-languageserver": "10.1.1",
+        "vscode-languageserver-textdocument": "1.0.14"
+    },
+    "peerDependencies": {
+        "idfkit": "0.0.0"
+    },
+    "peerDependenciesMeta": {
+        "idfkit": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "22.10.2",
+        "esbuild": "0.27.3",
+        "typescript": "5.7.2",
+        "vitest": "2.1.8"
+    }
+}

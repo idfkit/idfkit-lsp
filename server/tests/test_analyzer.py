@@ -52,6 +52,16 @@ class TestDocumentFactories:
         bindings = IdfKitAnalyzer().analyze(src)
         assert bindings["doc"].is_document
 
+    def test_load_idf_with_diagnostics(self) -> None:
+        # A document-producing entry point the written factory table never heard of. It hands the
+        # document back inside a result object, so only a derived surface finds it.
+        src = (
+            "from idfkit import load_idf_with_diagnostics\n"
+            'doc = load_idf_with_diagnostics("m.idf")\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
     def test_unrecognised_call_not_tracked(self) -> None:
         src = "from idfkit import load_idf\nresult = other_func()\n"
         bindings = IdfKitAnalyzer().analyze(src)
@@ -129,6 +139,26 @@ class TestAnnotations:
         src = "from idfkit import IDFObject\nobj: IDFObject\n"
         bindings = IdfKitAnalyzer().analyze(src)
         assert bindings["obj"].is_object
+
+    def test_subscripted_annotation(self) -> None:
+        # The document type is generic now, so a written annotation carries a subscript. Matching
+        # the annotation name without unwrapping it to its origin silently stopped inferring.
+        src = (
+            "from typing import Literal\n"
+            "from idfkit import IDFDocument\n"
+            "doc: IDFDocument[Literal[True]] = obtain()\n"
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["doc"].is_document
+
+    def test_subscripted_param_annotation(self) -> None:
+        src = (
+            "from idfkit import IDFDocument\n"
+            "def process(doc: IDFDocument[bool]):\n"
+            '    zones = doc["Zone"]\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert bindings["zones"] == InferredType(IdfKitType.COLLECTION, "Zone")
 
     def test_function_param_annotation(self) -> None:
         src = (

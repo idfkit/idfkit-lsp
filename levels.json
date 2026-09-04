@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "register": "governance/consumers.toml in idfkit-conformance, the consumer register defined by feature 004 of the unification, read at a pinned governance-YYYY.N tag and never at a branch. The register records this repository's shape and points at this file; it holds no level of its own.",
+  "libraries": [
+    {
+      "name": "idfkit",
+      "declared_in": [
+        "server/pyproject.toml",
+        "server/uv.lock"
+      ],
+      "resolution": "exact pin, resolved from PyPI by uv",
+      "level": "1.0.0rc1",
+      "current": "1.0.0rc1",
+      "standing": "current"
+    },
+    {
+      "name": "pygls",
+      "declared_in": [
+        "server/pyproject.toml",
+        "server/uv.lock"
+      ],
+      "resolution": "exact pin, resolved from PyPI by uv",
+      "level": "2.1.1",
+      "current": "2.1.1",
+      "standing": "current"
+    },
+    {
+      "name": "lsprotocol",
+      "declared_in": [
+        "server/pyproject.toml",
+        "server/uv.lock"
+      ],
+      "resolution": "exact pin, resolved from PyPI by uv",
+      "level": "2025.0.0",
+      "current": "2025.0.0",
+      "standing": "current"
+    },
+    {
+      "name": "vscode-languageserver",
+      "declared_in": [
+        "model-server/package.json"
+      ],
+      "resolution": "exact pin, resolved from the npm registry",
+      "level": "10.1.1",
+      "current": "10.1.1",
+      "standing": "current"
+    },
+    {
+      "name": "vscode-languageserver-textdocument",
+      "declared_in": [
+        "model-server/package.json"
+      ],
+      "resolution": "exact pin, resolved from the npm registry",
+      "level": "1.0.14",
+      "current": "1.0.14",
+      "standing": "current"
+    },
+    {
+      "name": "vscode-languageclient",
+      "declared_in": [
+        "client/package.json"
+      ],
+      "resolution": "exact pin, resolved from the npm registry",
+      "level": "9.0.1",
+      "current": "10.1.1",
+      "standing": "behind_deliberate",
+      "reason": "Version 10 raises the editor floor above the ^1.86.0 this extension targets. Moving the floor again to gain nothing a user would notice is a cost with no return, so the client stays on 9 until the floor moves for a reason of its own."
+    },
+    {
+      "name": "idfkit (the second language's facade)",
+      "declared_in": [
+        "model-server/package.json"
+      ],
+      "resolution": "optional peer, not installed by this repository. Present only where a user has installed it alongside the language service.",
+      "level": "0.0.0",
+      "current": "0.0.0",
+      "standing": "behind_temporary",
+      "reason": "The facade is not published to the npm registry. This repository declares the level it will resolve and reaches the component through a guard that names what to install when it is absent, which is the only behaviour available until it is published.",
+      "tracked": "@idfkit/language, feature 005 of the unification, and the first publication of the second language's facade."
+    }
+  ]
+}

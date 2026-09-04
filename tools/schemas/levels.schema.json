@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/idfkit/idfkit-lsp/levels.schema.json",
+  "title": "Level declaration",
+  "description": "Every library this repository resolves, where its level is declared, how it is resolved, and why it is where it is. The consumer register points at this file rather than duplicating it.",
+  "type": "object",
+  "required": ["version", "register", "libraries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "register": { "type": "string", "minLength": 1 },
+    "libraries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/library" }
+    }
+  },
+  "$defs": {
+    "library": {
+      "type": "object",
+      "required": ["name", "declared_in", "resolution", "level", "current", "standing"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "declared_in": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Repository-relative paths that state this level. More than one is allowed; disagreement between them fails the build."
+        },
+        "resolution": { "type": "string", "minLength": 1 },
+        "level": { "type": "string", "minLength": 1 },
+        "current": { "type": "string", "minLength": 1 },
+        "standing": { "enum": ["current", "behind_deliberate", "behind_temporary"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "tracked": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "standing": { "const": "behind_temporary" } } },
+          "then": { "required": ["reason", "tracked"] }
+        },
+        {
+          "if": { "properties": { "standing": { "const": "behind_deliberate" } } },
+          "then": { "required": ["reason"] }
+        }
+      ]
+    }
+  }
+}

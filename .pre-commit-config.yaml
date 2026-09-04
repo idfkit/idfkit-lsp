@@ -12,15 +12,36 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^server/
+        files: ^(server|tools|tests)/
       - id: ruff-format
-        files: ^server/
+        files: ^(server|tools|tests)/
 
   - repo: https://github.com/RobertCraiworthy/pyright-python
     rev: v1.1.393
     hooks:
       - id: pyright
-        files: ^server/src/
+        files: ^(server/src|tools|tests/protocol)/
         additional_dependencies:
           - pygls>=2.0
           - lsprotocol
+
+  - repo: local
+    hooks:
+      - id: check-declaration
+        name: capabilities.json agrees with the manifest and the servers
+        entry: uv run --frozen --project server python -m tools.check_declaration
+        language: system
+        pass_filenames: false
+        files: ^(capabilities\.json|package\.json|README\.md|server/src/|model-server/src/)
+      - id: check-levels
+        name: levels.json agrees with every file that declares a level
+        entry: uv run --frozen --project server python -m tools.check_levels
+        language: system
+        pass_filenames: false
+        files: ^(levels\.json|server/pyproject\.toml|server/uv\.lock|model-server/package\.json)
+      - id: check-knowledge
+        name: no schema table, grammar pattern, or model-text offset arithmetic
+        entry: uv run --frozen --project server python -m tools.check_knowledge
+        language: system
+        pass_filenames: false
+        files: ^(server/src/|model-server/src/|client/src/)

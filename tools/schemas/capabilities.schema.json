@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/idfkit/idfkit-lsp/capabilities.schema.json",
+  "title": "Capability declaration",
+  "description": "The single record of what each server serves and what it does not. Asserted against by the protocol suite in both directions: a present capability the server does not answer fails, and an answered request missing from this file fails.",
+  "type": "object",
+  "required": [
+    "version",
+    "servers"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "servers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/server"
+      }
+    },
+    "retained_knowledge": {
+      "type": "array",
+      "description": "Knowledge this repository retains that Principle I would otherwise forbid, recorded here rather than left to a reader to discover. Each entry names where it lives, why it stays, and what would remove it.",
+      "items": {
+        "type": "object",
+        "required": [
+          "subject",
+          "where",
+          "reason",
+          "tracked"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "where": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tracked": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "server": {
+      "type": "object",
+      "required": [
+        "id",
+        "documents",
+        "runtime",
+        "capabilities"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "source",
+            "model"
+          ]
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/documentKind"
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/capability"
+          }
+        }
+      }
+    },
+    "documentKind": {
+      "type": "object",
+      "required": [
+        "language_id",
+        "extensions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "language_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "extensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[A-Za-z0-9]+$"
+          }
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "required": [
+        "request",
+        "state"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "request": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "present",
+            "absent_permanent",
+            "absent_temporary"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instead": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tracked": {
+          "type": "string",
+          "minLength": 1
+        },
+        "editor_specific": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "absent_permanent"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reason",
+              "instead"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "absent_temporary"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "tracked"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "reason"
+                  ]
+                },
+                {
+                  "required": [
+                    "instead"
+                  ]
+                },
+                {
+                  "required": [
+                    "tracked"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -12,6 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 
+from idfkit_lsp.library_surface import load_library_surface
+
 log = logging.getLogger(__name__)
 
 
@@ -64,20 +66,6 @@ class Scope:
 
     def bind(self, name: str, typ: InferredType) -> None:
         self.bindings[name] = typ
-
-
-# ---------------------------------------------------------------------------
-# Functions / constructors that produce IDFDocument
-# ---------------------------------------------------------------------------
-
-_DOCUMENT_FACTORIES: frozenset[str] = frozenset({"load_idf", "load_epjson", "new_document"})
-
-# Type annotation names → IdfKitType
-_TYPE_NAMES: dict[str, IdfKitType] = {
-    "IDFDocument": IdfKitType.DOCUMENT,
-    "IDFCollection": IdfKitType.COLLECTION,
-    "IDFObject": IdfKitType.OBJECT,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -272,16 +260,18 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         return None
 
     def _infer_call(self, node: ast.Call) -> InferredType | None:
+        factories = load_library_surface().document_factories
+
         # Direct call: load_idf(...)
         if isinstance(node.func, ast.Name):
-            if node.func.id in _DOCUMENT_FACTORIES and node.func.id in self.imported_names:
+            if node.func.id in factories and node.func.id in self.imported_names:
                 return InferredType(IdfKitType.DOCUMENT)
 
         # Qualified call: idfkit.load_idf(...)
         if isinstance(node.func, ast.Attribute):
             # module.factory()
             if (
-                node.func.attr in _DOCUMENT_FACTORIES
+                node.func.attr in factories
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id in self.imported_names
             ):
@@ -324,10 +314,17 @@ class IdfKitAnalyzer(ast.NodeVisitor):
     # ------------------------------------------------------------------
 
     def _infer_from_annotation(self, annotation: ast.expr) -> InferredType | None:
-        if isinstance(annotation, ast.Name) and annotation.id in _TYPE_NAMES:
-            return InferredType(_TYPE_NAMES[annotation.id])
-        if isinstance(annotation, ast.Attribute) and annotation.attr in _TYPE_NAMES:
-            return InferredType(_TYPE_NAMES[annotation.attr])
+        # A generic subscript names the same type it parameterises, so IDFDocument[Literal[True]]
+        # is still a document. Unwrapping to the origin is the annotation-side half of the same
+        # step library_surface performs on resolved annotations.
+        if isinstance(annotation, ast.Subscript):
+            return self._infer_from_annotation(annotation.value)
+
+        type_names = load_library_surface().type_names
+        if isinstance(annotation, ast.Name) and annotation.id in type_names:
+            return InferredType(type_names[annotation.id])
+        if isinstance(annotation, ast.Attribute) and annotation.attr in type_names:
+            return InferredType(type_names[annotation.attr])
         return None
 
     # ------------------------------------------------------------------

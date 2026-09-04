@@ -2,291 +2,149 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+`.specify/memory/constitution.md` governs. Where this file and the constitution disagree, the
+constitution is right and this file is the defect.
+
 ## Project Overview
 
-idfkit-lsp is a Language Server Protocol implementation for idfkit (an EnergyPlus Python library). It has two parts:
-- **Server** (`server/`): Python LSP server using pygls, providing autocomplete, hover, and signature help via AST-based type inference
-- **Client** (`client/`): VS Code extension (TypeScript) that spawns the Python server
+idfkit-lsp ships editor support for two different things, and it owns protocol rather than
+knowledge. That sentence decides most questions here.
+
+- **Source server** (`server/`): Python, pygls. Serves Python files that use the idfkit library:
+  completion, hover, signature help, a documentation command, and a versions request. Everything it
+  knows about EnergyPlus comes from the installed `idfkit`.
+- **Model server** (`model-server/`): TypeScript, ESM, on the editor's own Node runtime. Serves
+  EnergyPlus model text by wrapping the `@idfkit/language` service, translating positions and
+  nothing else. Peer of the source server, not a subordinate.
+- **Client** (`client/`): the VS Code extension. Locates and starts each server, declares which
+  documents each serves, surfaces server output. Nothing else lives here.
+- **Protocol suite** (`tests/protocol/`): one suite, both servers, protocol in and protocol out,
+  no editor anywhere.
+- **Checks** (`tools/`): the three gates that hold the constitution up before review.
+
+## The two declared records
+
+Both sit at the repository root because both are read from both languages.
+
+- **`capabilities.json`** is the single source of truth for what each server advertises. Both
+  servers advertise from it, the client reads it for its document selectors, the readme renders it,
+  and the protocol suite asserts it against the servers in both directions. A capability entry flips
+  to `present` in the same change as the handler that answers it, never before.
+- **`levels.json`** records every library this repository resolves, where each level is declared,
+  how it is acquired, and the kind and reason when it is behind. The consumer register in
+  `idfkit-conformance` points at it and holds no level of its own.
+
+Three states and no fourth: `present`, `absent_permanent` (needs `reason` and `instead`),
+`absent_temporary` (needs `tracked`). Both runtimes fail at load on a malformed declaration.
 
 ## Commands
 
-All commands run from `server/` directory. Package manager is **uv**.
+All run from the repository root. Package managers are **uv** (Python) and **npm** (TypeScript).
 
 ```bash
-make install          # Install dependencies
-make test             # Run tests
-make test-v           # Run tests (verbose)
-make lint             # Ruff linter
-make format           # Ruff format check
-make typecheck        # Pyright type checking
-make check            # All checks (lint + format + typecheck + test)
-make fix              # Auto-fix lint + format
+make install           # Install both runtimes
+make check             # The one command a change is held to
+make fix               # Auto-fix lint and format
+
+make lint              # Ruff over server/, tools/, tests/
+make format            # Ruff format check
+make typecheck         # Pyright over the Python trees, tsc over the model server
+
+make check-declaration # capabilities.json agrees with the manifest, the readme, and the servers
+make check-levels      # levels.json agrees with every file that declares a level
+make check-knowledge   # no schema table, grammar pattern, or model-text offset arithmetic
+
+make test              # Source server unit tests
+make test-model        # Model server unit tests
+make test-protocol     # Both servers over the protocol, no editor (ARGS=... passes through)
+make bench-protocol    # An answer at a cursor, measured at the protocol boundary
+make build             # Bundle the client and the model server
 ```
 
-Run a single test:
+Single tests:
+
 ```bash
-cd server && uv run pytest tests/test_analyzer.py -v
 cd server && uv run pytest tests/test_analyzer.py::TestImportTracking::test_name -v
+uv run --project server python -m pytest tests/protocol/test_declaration.py -v
+cd model-server && npx vitest run tests/positions.test.ts
 ```
 
-Client (VS Code extension):
-```bash
-cd client && npm install && npm run compile
-```
+Python outside `server/` runs as `uv run --project server <cmd>` from the repository root, which
+keeps the working directory at the root so `tools` and `tests.protocol` import.
 
 ## Architecture
 
-The server follows a pipeline: **Document Change → AST Analysis → Handler Response**.
+### Source server (`server/src/idfkit_lsp/`)
 
-### Core Flow
-1. `server.py` — pygls LanguageServer wiring; registers LSP handlers and a logging bridge that forwards Python logs to the LSP client
-2. `analyzer.py` — Single-pass AST visitor (`IdfKitAnalyzer`) that tracks imports and infers variable types (`InferredType` with `IdfKitType` enum: DOCUMENT, COLLECTION, OBJECT + optional `object_type` like "Zone")
-3. `document_state.py` — Caches per-document analysis results (`DocumentStateManager`)
-4. `schema_cache.py` — Wraps `idfkit.schema.EpJSONSchema`; provides field name/description lookups with lazy caching
-5. Feature handlers use analyzer results + schema to build responses:
-   - `completion.py` — Context detection + completion items
-   - `hover.py` — Hover target detection + docs
-   - `signature_help.py` — `doc.add()` call signature info
+Pipeline: **document change → AST analysis → handler response**.
 
-### Key Types (analyzer.py)
-- `IdfKitType`: Enum (DOCUMENT, COLLECTION, OBJECT)
-- `InferredType`: Frozen dataclass with `kind` + optional `object_type`
-- `Scope`: Lexical scope chain for variable bindings
+1. `server.py` — pygls wiring. Registers only what `capabilities.json` marks present on the source
+   server, and a logging bridge forwarding Python logs to the client
+2. `capabilities.py` — typed loader for `capabilities.json`, with the state rules enforced at load
+3. `library_surface.py` — derives the document-producing callables and the recognised type names
+   from the installed `idfkit` by resolving its annotations. There is no written table
+4. `analyzer.py` — single-pass AST visitor tracking imports and inferring variable types
+   (`InferredType` with `IdfKitType`: DOCUMENT, COLLECTION, OBJECT, plus an optional `object_type`)
+5. `document_state.py` — per-document analysis cache
+6. `schema_cache.py` — wraps `idfkit.schema.EpJSONSchema`; holds no field data of its own
+7. `completion.py`, `hover.py`, `signature_help.py` — handlers reading the analyzer and the schema
 
-## Testing
+### Model server (`model-server/src/`)
 
-Tests use pytest with `pytest-asyncio` (auto mode). Session-scoped `schema()` fixture in `conftest.py` provides a real `SchemaCache`. Tests are class-based (e.g., `TestImportTracking`, `TestDocumentFactories`).
-
-## CI
-
-GitHub Actions: lint, format, typecheck, and test matrix across Python 3.10–3.13. Pre-commit hooks run ruff + pyright on `server/` files.
+1. `main.ts` — protocol wiring over stdio, advertising from `capabilities.ts`
+2. `capabilities.ts` — the TypeScript loader for `capabilities.json`, same rules as the Python one
+3. `service.ts` — the single import of `@idfkit/language`, through the `idfkit/language` subpath,
+   with the facade's guard message passed through unchanged when the component is absent
+4. `documents.ts` — one service handle per open document, fed edits under incremental sync
+5. `positions.ts` — **the only arithmetic over model text in this repository**, and the single
+   declared exception to Principle I. `tools/check_knowledge.py` exempts it by name
+6. `handlers/` — semantic tokens, diagnostics, completion, hover, definition. Each is a pure
+   translation of what the service returned
 
 ## Style
 
-- Ruff: line length 99, rules E/W/F/I/UP/B/SIM/TC/RUF
-- Pyright basic mode, Python 3.10 target
-- Prefer typed objects (pydantic/dataclasses) over dictionaries
+- Ruff: line length 99, rules E/W/F/I/UP/B/SIM/TC/RUF. Pyright basic, Python 3.10 target
+- `from __future__ import annotations` in every Python module
+- Typed objects (frozen dataclasses, enums) over dictionaries, in both languages
+- TypeScript: strict, ESM, NodeNext, so relative imports carry an explicit `.js` extension
+- No em-dashes in prose
 
-## idfkit Dependency Guide
+## What must not get in
 
-**idfkit** is a Python toolkit for EnergyPlus IDF/epJSON files. It provides O(1) object lookups, automatic reference tracking, schema-driven validation, simulation execution, weather data, schedule evaluation, thermal calculations, and 3D geometry operations. Zero third-party dependencies for the core package (including simulation, schedules, thermal, and geometry). Optional extras: `weather` (openpyxl), `pandas`, `plot` (matplotlib), `plotly`, `progress` (tqdm), `s3`/`async-s3` (cloud storage), or `all`.
+Principle I is the rule most likely to be broken by a helpful change, which is why a check enforces
+it rather than a reviewer:
 
-### Loading & Creating Documents
+- No list of object types or field names anywhere. Those come from `idfkit` or from the language
+  service, and a local copy is correct on the day it is written and silently wrong after
+- No grammar pattern applied to model text
+- No arithmetic deriving an element from a text offset outside `model-server/src/positions.ts`
+- No answer assembled locally when a library declines to give one. An absence is stated, and an
+  absence that is permanent or temporary is recorded in `capabilities.json` with its kind
 
-```python
-from idfkit import load_idf, load_epjson, new_document
+A suppression is available and costs a sentence: `# check-knowledge: allow <reason>` or the `//`
+form. The reason is required, which is what keeps suppressions countable.
 
-doc = load_idf("building.idf")               # Load IDF file
-doc = load_epjson("building.epjson")          # Load epJSON file
-doc = new_document()                          # New doc (latest EnergyPlus version)
-doc = new_document(version=(24, 1, 0))        # Specific version
-```
+## The external dependency
 
-### Accessing Objects (O(1) Lookups)
+`@idfkit/language` (feature 005 of the unification) is not published. The model server is written
+against its contracted surface, recorded in
+`specs/001-two-server-editor-support/contracts/language-service-expected.md`, and reaches it through
+a guard. Until it ships, the model server's five model-text answers are `absent_temporary` in
+`capabilities.json`, and the paths that run are the guard path and the pure translations. When it
+ships, those entries flip to `present` and the protocol suite's skipped groups start running.
 
-```python
-# By IDF type name (dict-style) — returns IDFCollection
-zones = doc["Zone"]
-zone = zones["Office"]                          # O(1) by name
+## CI
 
-# By Python attribute — snake_case mapped to IDF type
-zones = doc.zones                             # same as doc["Zone"]
-surfaces = doc.building_surfaces              # BuildingSurface:Detailed
-
-# Iteration
-for obj_type in doc:                          # iterate object types
-    for obj in doc[obj_type]:                 # iterate objects of that type
-        print(obj.name)
-```
-
-### Creating & Modifying Objects
-
-```python
-# Add objects — fields use snake_case Python names
-zone = doc.add("Zone", "Office", x_origin=0.0, y_origin=0.0, z_origin=0.0)
-
-# Modify fields via attribute access
-zone.x_origin = 10.0
-
-# Rename (auto-updates all references across the document)
-doc.rename("Zone", "Office", "Office_A")
-
-# Remove
-doc.removeidfobject(zone)
-
-# Deep copy entire document
-doc_copy = doc.copy()
-```
-
-### Reference Tracking
-
-```python
-# Find all objects that reference a given name (O(1))
-refs = doc.references.get_referencing("Office")        # set of IDFObjects
-refs = doc.references.get_referencing_with_fields("Office")  # set of (obj, field)
-
-# Check if a name is referenced
-doc.references.is_referenced("Office")  # bool
-```
-
-### Writing Files
-
-```python
-from idfkit import write_idf, write_epjson
-
-write_idf(doc, "output.idf")
-write_epjson(doc, "output.epjson")
-```
-
-### Validation
-
-```python
-from idfkit import validate_document
-
-result = validate_document(doc)
-print(result.is_valid)          # bool
-for err in result.errors:       # ValidationError objects
-    print(err.obj_type, err.field, err.message)
-```
-
-### Schema Introspection
-
-```python
-desc = doc.describe("Zone")       # ObjectDescription
-for field in desc.fields:           # FieldDescription objects
-    print(field.name, field.field_type, field.required, field.default)
-```
-
-### Simulation (no extras required; requires EnergyPlus installed)
-
-```python
-from idfkit.simulation import simulate, async_simulate
-from idfkit.simulation import simulate_batch, SimulationJob
-
-# Sync
-result = simulate(doc, weather="weather.epw", design_day=True)
-print(result.success, result.runtime_seconds)
-
-# Access SQL results
-ts = result.sql.get_timeseries("Zone Mean Air Temperature", "Office")
-
-# Async
-result = await async_simulate(doc, weather="weather.epw")
-
-# Batch (parallel)
-jobs = [SimulationJob(doc, "w1.epw", label="Run1"),
-        SimulationJob(doc, "w2.epw", label="Run2")]
-batch = simulate_batch(jobs, max_workers=4)
-print(batch.all_succeeded)
-for r in batch.succeeded:
-    print(r.label, r.result.success)
-```
-
-### Weather Data (bundled index; `idfkit[weather]` extra for index refresh)
-
-```python
-from idfkit.weather import WeatherDownloader
-
-dl = WeatherDownloader()
-results = dl.search("San Francisco")            # text search (~17k stations)
-spatial = dl.search_spatial(37.77, -122.42)      # geographic search
-station = results[0].station
-dl.download(station, "./weather")                # downloads EPW + DDY
-
-# Inject design days into doc
-from idfkit.weather import inject_design_days
-inject_design_days(doc, "./weather/station.ddy")
-```
-
-### Schedule Evaluation (no extras required)
-
-```python
-from datetime import datetime
-from idfkit.schedules import evaluate, values
-
-# Evaluate at a point in time (supports all 8 EnergyPlus schedule types)
-val = evaluate(schedule_obj, datetime(2024, 7, 15, 14, 0), document=doc)
-
-# Generate annual timeseries (returns DataFrame if pandas available)
-df = values(schedule_obj, year=2024, timestep=1, document=doc)
-
-# Create schedules
-from idfkit.schedules import create_constant_schedule
-sched = create_constant_schedule(doc, "AlwaysOn", value=1.0)
-```
-
-### Thermal Properties (no extras required)
-
-```python
-from idfkit.thermal import calculate_u_value, calculate_r_value
-from idfkit.thermal import calculate_shgc, get_thermal_properties
-
-u = calculate_u_value(construction_obj)    # W/m²·K (with films)
-r = calculate_r_value(construction_obj)    # m²·K/W (without films)
-shgc = calculate_shgc(construction_obj)    # glazing only
-
-props = get_thermal_properties(construction_obj)  # full breakdown
-for layer in props.layers:
-    print(layer.name, layer.r_value)
-```
-
-### Geometry
-
-```python
-from idfkit import Vector3D, Polygon3D
-from idfkit.geometry import (
-    calculate_surface_area, calculate_zone_volume,
-    translate_building, rotate_building, scale_building,
-    intersect_match, set_wwr,
-)
-
-# Surface/zone calculations
-area = calculate_surface_area(surface_obj)
-vol = calculate_zone_volume(zone_obj)
-
-# Building transforms
-translate_building(doc, dx=10, dy=0, dz=0)
-rotate_building(doc, angle=45)
-scale_building(doc, factor=1.5)
-
-# Window-to-wall ratio
-set_wwr(doc, wwr=0.4)
-
-# Surface intersection and matching
-intersect_match(doc)
-```
-
-### Key Patterns & Pitfalls
-
-- **Version-bound**: Each document is tied to an EnergyPlus version. Supported: 8.9.0–25.2.0.
-- **Snake-case fields**: Use `zone.x_origin`, not `zone["X Origin"]` (both work, attributes preferred).
-- **Validation is opt-in**: Call `validate_document()` explicitly; parsing does not validate.
-- **Rename cascades**: `doc.rename()` updates all cross-references automatically.
-- **Strict mode**: `doc.strict = True` raises `AttributeError` on field typos (useful for debugging).
-- **Optional extras**: Core features (simulation, schedules, thermal, geometry) need no extras. Install `idfkit[weather]` for index refresh, `idfkit[pandas]` for DataFrames, `idfkit[plot]`/`idfkit[plotly]` for plotting, `idfkit[progress]` for tqdm bars, `idfkit[s3]` for cloud storage, or `idfkit[all]`.
-
-### Exception Hierarchy
-
-All exceptions inherit from `IdfKitError`:
-
-- `IDFParseError`, `ParseError` — parsing failures
-- `UnknownObjectTypeError` — invalid IDF object type
-- `DuplicateObjectError` — singleton constraint violation
-- `ValidationFailedError` — validation errors
-- `SimulationError`, `EnergyPlusNotFoundError` — simulation failures
-- `VersionNotFoundError`, `SchemaNotFoundError` — version/schema issues
+`.github/workflows/ci.yml`: lint, typecheck (both languages), the three declaration checks, the
+source server across Python 3.10 to 3.13, the model server, and the protocol suite on Linux and
+Windows. Pre-commit runs ruff, pyright, and the three checks.
 
 ## Automated idfkit bumps
 
-When invoked by `.github/workflows/bump-idfkit.yml` on test failure after an idfkit version bump:
+When invoked by `.github/workflows/bump-idfkit.yml` on failure after an idfkit version bump:
 
-- Make the smallest possible compatibility change.
-- Do not perform unrelated refactors.
-- Do not change formatting broadly.
-- Run `cd server && uv run pytest` before finishing.
-- Preserve public APIs unless the idfkit upgrade requires otherwise.
-- Summarize:
-  - root cause
-  - files changed
-  - tests run
-  - remaining risks
+- Make the smallest possible compatibility change. No unrelated refactors, no broad reformatting
+- A bump moves `level` in `levels.json` too. If `make check-levels` fails, the declaration is behind
+  the pin: fix the declaration, not the check
+- Run `make check` from the repository root before finishing
+- Summarise: root cause, files changed, checks run, remaining risks

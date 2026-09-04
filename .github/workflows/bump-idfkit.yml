@@ -27,17 +27,44 @@ jobs:
           echo "Normalized version: $version"
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Bump idfkit
         working-directory: server
         run: |
           uv add "idfkit==${{ steps.ver.outputs.version }}"
           uv lock
-      - name: Run tests
+      # A bump that leaves the declaration behind is exactly the silence levels.json removes, so the
+      # declared level moves in the same step as the pin and the check runs before anything else.
+      - name: Update the declared level
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          version = os.environ["VERSION"]
+          path = pathlib.Path("levels.json")
+          declaration = json.loads(path.read_text())
+          for library in declaration["libraries"]:
+              if library["name"] == "idfkit":
+                  library["level"] = version
+                  library["current"] = version
+                  library["standing"] = "current"
+                  library.pop("reason", None)
+                  library.pop("tracked", None)
+          path.write_text(json.dumps(declaration, indent=2) + "\n")
+          PY
+      - name: Install the model server runtime
+        working-directory: model-server
+        run: npm ci
+      - name: Check the declared levels
+        run: make check-levels
+      - name: Run the gate
         id: tests
-        working-directory: server
         continue-on-error: true
         run: |
-          uv run pytest 2>&1 | tee "$RUNNER_TEMP/bump-test-output.txt"
+          make check 2>&1 | tee "$RUNNER_TEMP/bump-test-output.txt"
       - name: Ask Claude to repair test failures
         if: steps.tests.outcome == 'failure'
         uses: anthropics/claude-code-action@v1
@@ -49,14 +76,14 @@ jobs:
             - Read the failure output at ${{ runner.temp }}/bump-test-output.txt.
             - Diagnose the compatibility issue caused by the idfkit upgrade.
             - Make the minimal code changes required.
+            - If the failure is in tools/check_levels.py, the declared level in levels.json and the pin disagree; fix the declaration rather than the check.
             - Do not refactor unrelated code.
             - Preserve public APIs unless the idfkit upgrade requires a change.
-            - Rerun: cd server && uv run pytest
+            - Rerun: make check (from the repository root)
             - Leave a concise summary of root cause, changed files, and final test result.
-      - name: Rerun tests after Claude repair
+      - name: Rerun the gate after Claude repair
         if: steps.tests.outcome == 'failure'
-        working-directory: server
-        run: uv run pytest
+        run: make check
       - name: Open PR
         uses: peter-evans/create-pull-request@v6
         with:
@@ -68,6 +95,6 @@ jobs:
             Automated idfkit dependency bump.
             - Version: `${{ steps.ver.outputs.version }}`
             - Initial test result: `${{ steps.tests.outcome }}`
-            - Test command: `cd server && uv run pytest`
+            - Test command: `make check` (from the repository root)
 
             If tests initially failed, Claude attempted a minimal compatibility repair.

@@ -1,12 +1,14 @@
 .DEFAULT_GOAL := help
 
 SERVER_DIR := server
+MODEL_SERVER_DIR := model-server
 
 # ── Environment ──────────────────────────────────────────────────────────
 
 .PHONY: install
-install: ## Install the project with dev dependencies using uv
+install: ## Install both runtimes with their dev dependencies
 	cd $(SERVER_DIR) && uv sync --extra dev
+	cd $(MODEL_SERVER_DIR) && npm install
 
 .PHONY: lock
 lock: ## Regenerate the lockfile
@@ -16,41 +18,75 @@ lock: ## Regenerate the lockfile
 
 .PHONY: lint
 lint: ## Run ruff linter
-	cd $(SERVER_DIR) && uv run ruff check src tests
+	cd $(SERVER_DIR) && uv run --frozen ruff check src tests ../tools ../tests
 
 .PHONY: format
 format: ## Run ruff formatter (check only)
-	cd $(SERVER_DIR) && uv run ruff format --check src tests
+	cd $(SERVER_DIR) && uv run --frozen ruff format --check src tests ../tools ../tests
 
 .PHONY: format-fix
 format-fix: ## Auto-format code with ruff
-	cd $(SERVER_DIR) && uv run ruff format src tests
+	cd $(SERVER_DIR) && uv run --frozen ruff format src tests ../tools ../tests
 
 .PHONY: lint-fix
 lint-fix: ## Auto-fix lint issues with ruff
-	cd $(SERVER_DIR) && uv run ruff check --fix src tests
+	cd $(SERVER_DIR) && uv run --frozen ruff check --fix src tests ../tools ../tests
 
 .PHONY: typecheck
-typecheck: ## Run pyright type checker
-	cd $(SERVER_DIR) && uv run pyright src
+typecheck: ## Run pyright over the Python trees and tsc over the model server
+	cd $(SERVER_DIR) && uv run --frozen pyright src ../tools ../tests/protocol
+	cd $(MODEL_SERVER_DIR) && npm run typecheck
+
+# ── Declared records ─────────────────────────────────────────────────────
+
+.PHONY: check-declaration
+check-declaration: ## capabilities.json agrees with the manifest, the readme, and the servers
+	uv run --frozen --project $(SERVER_DIR) python -m tools.check_declaration
+
+.PHONY: check-levels
+check-levels: ## levels.json agrees with every file that declares a level
+	uv run --frozen --project $(SERVER_DIR) python -m tools.check_levels
+
+.PHONY: check-knowledge
+check-knowledge: ## no schema table, grammar pattern, or model-text offset arithmetic
+	uv run --frozen --project $(SERVER_DIR) python -m tools.check_knowledge
 
 # ── Testing ──────────────────────────────────────────────────────────────
 
 .PHONY: test
-test: ## Run tests with pytest
-	cd $(SERVER_DIR) && uv run pytest
+test: ## Run the source server's unit tests
+	cd $(SERVER_DIR) && uv run --frozen pytest tests
 
 .PHONY: test-v
-test-v: ## Run tests with verbose output
-	cd $(SERVER_DIR) && uv run pytest -v
+test-v: ## Run the source server's unit tests, verbose
+	cd $(SERVER_DIR) && uv run --frozen pytest tests -v
+
+.PHONY: test-model
+test-model: ## Run the model server's unit tests
+	cd $(MODEL_SERVER_DIR) && npm test
+
+.PHONY: test-protocol
+test-protocol: ## Drive both servers over the protocol, with no editor
+	cd $(SERVER_DIR) && uv run --frozen pytest ../tests/protocol $(ARGS)
+
+.PHONY: bench-protocol
+bench-protocol: ## Measure an answer at a cursor at the protocol boundary
+	cd $(SERVER_DIR) && uv run --frozen pytest ../tests/protocol/test_budget.py -v -s $(ARGS)
 
 # ── Combined ─────────────────────────────────────────────────────────────
 
 .PHONY: check
-check: lint format typecheck test ## Run all checks (lint, format, typecheck, test)
+check: lint format typecheck check-declaration check-levels check-knowledge test test-model test-protocol ## The one command a change is held to
 
 .PHONY: fix
 fix: lint-fix format-fix ## Auto-fix lint and format issues
+
+# ── Build ────────────────────────────────────────────────────────────────
+
+.PHONY: build
+build: ## Bundle the client and the model server
+	npm run compile
+	cd $(MODEL_SERVER_DIR) && npm run build
 
 # ── Pre-commit ───────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 {
     "name": "idfkit-lsp-client",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "main": "./dist/extension.js",
     "scripts": {
         "build": "tsc -p .",
@@ -19,7 +19,7 @@
         ]
     },
     "dependencies": {
-        "vscode-languageclient": "^9.0.0"
+        "vscode-languageclient": "9.0.1"
     },
     "devDependencies": {
         "@types/node": "^25.3.0",
