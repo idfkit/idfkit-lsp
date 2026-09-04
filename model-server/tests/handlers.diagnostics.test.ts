@@ -34,7 +34,7 @@ const lines = () => new LineIndex(TEXT, 'utf-16');
 const FROM_READING: PositionedFinding<ParseDiagnostic> = {
   message: 'expected a terminator before the end of the file',
   line: 3,
-  code: 'IDF-PARSE-7',
+  code: 'ParseError',
   region: { start: 0, end: 4 },
   precision: 'statement',
 };

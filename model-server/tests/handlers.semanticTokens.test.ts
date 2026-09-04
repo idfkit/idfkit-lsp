@@ -188,7 +188,10 @@ describe('nothing is added, dropped, merged, or reclassified', () => {
     const fixture: Fixture = {
       what: 'a kind this repository has never heard of',
       text: 'ab',
-      regions: [{ start: 0, end: 2, kind: 'somethingEntirelyNew' }],
+      // Cast, because `TokenKind` is a closed union today and this test is about the day it is
+      // not. The legend is filled from what arrives rather than from a table here, so a kind the
+      // syntax layer names in a later release must survive the trip without this file changing.
+      regions: [{ start: 0, end: 2, kind: 'somethingEntirelyNew' as ClassifiedRegion['kind'] }],
     };
     const { lines, legend, payload } = translate(fixture);
     expect(legend.tokenTypes).toEqual(['somethingEntirelyNew']);

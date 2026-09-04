@@ -122,8 +122,12 @@ export function explanationOutcome(result: ExplanationResult): Outcome<Explanati
   switch (result.status) {
     case 'ok':
       return { kind: 'answer', value: result.explanation };
-    case 'unconstrained':
-      return CONSTRAINS_NOTHING;
+    // No 'unconstrained' case: the service does not report one here. "The schema constrains
+    // nothing at this offset" is an answer about what may be *offered*, so it exists on a
+    // completion and not on an explanation. The mirror this file was written against gave all
+    // three answers the same five statuses, which was its own guess and is now the package's
+    // fact. A branch for a status the union does not contain would be unreachable code standing
+    // in for a state that cannot occur.
     case 'noSchema':
       return cannotAnswer('noSchema', undefined);
     case 'unknownType':
@@ -147,8 +151,7 @@ export function declarationOutcome(
       return result.declarations.length === 0
         ? permitsNothing('empty')
         : { kind: 'answer', value: result.declarations };
-    case 'unconstrained':
-      return CONSTRAINS_NOTHING;
+    // No 'unconstrained' case here either, for the reason given on the explanation above.
     case 'noSchema':
       return cannotAnswer('noSchema', undefined);
     case 'unknownType':

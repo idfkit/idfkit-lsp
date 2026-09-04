@@ -36,7 +36,7 @@ const EXPLAINED: Explanation = {
   typeName: 'Zone',
   fieldName: 'ceiling_height',
   prose: 'the schema own words, reproduced and never paraphrased',
-  field: {},
+  field: undefined,
   docs: undefined,
 };
 
@@ -64,8 +64,10 @@ describe('an explanation the service produced', () => {
     const answer = hoverFor({ status: 'ok', explanation: bare }, lines());
     if (answer.kind !== 'hover') throw new Error('expected a hover');
     const contents = answer.hover.contents as { value: string };
-    // Exactly the two names the service gave, and not one sentence more.
-    expect(contents.value).toBe('`Zone`\n\n`ceiling_height`');
+    // Exactly the two names the service gave, and not one sentence more. The names share a
+    // line now that facts may follow them, but nothing was added: with no prose, no field
+    // description and no manual entry, the heading is the whole hover.
+    expect(contents.value).toBe('`Zone` · `ceiling_height`');
   });
 
   it('names only the type where the explanation is about a type', () => {
@@ -116,11 +118,10 @@ describe('nothing, rather than the nearest field', () => {
     });
   });
 
-  it('returns nothing where the schema constrains nothing, and keeps that apart', () => {
-    const answer = hoverFor({ status: 'unconstrained' }, lines());
-    if (answer.kind !== 'nothing') throw new Error('expected an absence');
-    expect(answer.absence).toEqual({ kind: 'constrainsNothing' });
-  });
+  // No test for 'unconstrained': `ExplanationResult` does not carry that status. "The schema
+  // constrains nothing here" is an answer about what may be offered, so it exists on a completion
+  // and not on an explanation. The mirror this suite was written against gave all three answers
+  // the same five statuses; the package gives each the statuses it actually reports.
 
   it('returns nothing where the type the text wrote is not in the schema', () => {
     const answer = hoverFor({ status: 'unknownType', typeName: 'Zne' }, lines());
@@ -188,5 +189,91 @@ describe('every declaration the service reports, never one chosen here', () => {
       reason: 'noSchema',
       typeName: undefined,
     });
+  });
+});
+
+/**
+ * A field description as the library hands one over.
+ *
+ * Every member is stated so a test can drop the ones it is not about. The values are deliberately
+ * unremarkable: what is under test is which members reach the reader, never what any of them mean.
+ */
+function describing(carried: Partial<NonNullable<Explanation['field']>> = {}) {
+  return {
+    name: 'ceiling_height',
+    fieldType: 'number',
+    required: false,
+    default: undefined,
+    units: undefined,
+    enumValues: undefined,
+    minimum: undefined,
+    maximum: undefined,
+    exclusiveMinimum: undefined,
+    exclusiveMaximum: undefined,
+    note: undefined,
+    isReference: false,
+    objectList: undefined,
+    ...carried,
+  } satisfies NonNullable<Explanation['field']>;
+}
+
+/** The hover's text for an explanation carrying the given field description. */
+function hoverText(field: NonNullable<Explanation['field']>, docs?: Explanation['docs']): string {
+  const explanation: Explanation = { ...EXPLAINED, prose: undefined, field, docs };
+  const answer = hoverFor({ status: 'ok', explanation }, lines());
+  if (answer.kind !== 'hover') throw new Error('expected a hover');
+  return (answer.hover.contents as { value: string }).value;
+}
+
+describe("the field's own facts, where the description carries them", () => {
+  it('reports the type and whether the schema requires it', () => {
+    expect(hoverText(describing({ required: true }))).toContain('number · required');
+  });
+
+  it('says optional where the schema does not require it', () => {
+    expect(hoverText(describing())).toContain('optional');
+  });
+
+  it("reports the units the schema stated, and none where it stated none", () => {
+    expect(hoverText(describing({ units: 'm' }))).toContain('m');
+    expect(hoverText(describing())).not.toContain('undefined');
+  });
+
+  it('reports the default as the schema wrote it', () => {
+    expect(hoverText(describing({ default: 'autocalculate' }))).toContain('`autocalculate`');
+  });
+
+  it('reports each bound that exists, and neither where there are none', () => {
+    expect(hoverText(describing({ minimum: 0, maximum: 1 }))).toContain('min `0` · max `1`');
+    expect(hoverText(describing({ minimum: 0 }))).not.toContain('max');
+  });
+
+  it("lists the permitted values in the schema's order, unsorted and untruncated", () => {
+    const offered = ['Yes', 'No', ''];
+    expect(hoverText(describing({ enumValues: offered }))).toContain('`Yes`, `No`, ``');
+  });
+
+  it('names what a reference points into', () => {
+    const text = hoverText(describing({ isReference: true, objectList: ['ZoneNames'] }));
+    expect(text).toContain('refers to `ZoneNames`');
+  });
+
+  it('reports no list for a field that is not a reference', () => {
+    expect(hoverText(describing({ objectList: ['ZoneNames'] }))).not.toContain('refers to');
+  });
+
+  it("links the manual under the library's own label, at the library's own address", () => {
+    const docs = {
+      url: 'https://docs.example/zone',
+      docSet: 'io-reference',
+      version: 'v26.1',
+      label: 'Zone — I/O Reference',
+    } satisfies NonNullable<Explanation['docs']>;
+    expect(hoverText(describing(), docs)).toContain('[Zone — I/O Reference](https://docs.example/zone)');
+  });
+
+  it('omits a member the description does not carry rather than writing that it is unknown', () => {
+    const text = hoverText(describing());
+    expect(text).not.toMatch(/unknown|none|n\/a/i);
   });
 });
