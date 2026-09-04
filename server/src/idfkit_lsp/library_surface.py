@@ -44,13 +44,19 @@ _OBJECT_ROUTE = "add"
 class LibrarySurface:
     """What the analyzer needs to know about the installed library, derived from it."""
 
+    #: Public callables whose resolved return annotation IS the document type.
     document_factories: frozenset[str]
+    #: Public callables that hand the document back INSIDE a result object, mapped to the
+    #: attributes of that object which hold one. A call to one of these is not a document, and
+    #: saying it is would offer document members on an object that has none.
+    document_carriers: Mapping[str, frozenset[str]]
     type_names: Mapping[str, IdfKitType]
     source: Literal["derived", "fallback"]
 
 
 _EMPTY_SURFACE = LibrarySurface(
     document_factories=frozenset(),
+    document_carriers=MappingProxyType({}),
     type_names=MappingProxyType({}),
     source="fallback",
 )
@@ -123,17 +129,28 @@ def _callables(members: Mapping[str, Any]) -> list[tuple[str, Any]]:
     ]
 
 
-def _document_type(members: Mapping[str, Any]) -> type | None:
+def _returns(members: Mapping[str, Any]) -> dict[str, Any]:
+    """Each public callable's resolved return annotation, resolved once.
+
+    ``typing.get_type_hints`` imports and evaluates a module's namespace, so resolving the same
+    callable twice costs twice; both passes below read this instead.
+    """
+    resolved: dict[str, Any] = {}
+    for name, obj in _callables(members):
+        returned = _resolve_return(obj)
+        if returned is not None:
+            resolved[name] = returned
+    return resolved
+
+
+def _document_type(returns: Mapping[str, Any]) -> type | None:
     """The document type: a class a public callable returns that behaves like a document.
 
     "Behaves like a document" is the API shape above, and it is the anchor the whole derivation
     hangs from: a returned class whose subscript yields some other class, and which can be added
     to. Nothing here names a type.
     """
-    for _, obj in _callables(members):
-        returned = _resolve_return(obj)
-        if returned is None:
-            continue
+    for _, returned in sorted(returns.items()):
         candidate = _unwrap(returned)
         if not inspect.isclass(candidate):
             continue
@@ -146,37 +163,45 @@ def _document_type(members: Mapping[str, Any]) -> type | None:
     return None
 
 
-def _carries_document(returned: Any, document_type: type) -> bool:
-    """Whether a return type is a result object handing a document back inside it.
+def _document_attributes(returned: Any, document_type: type) -> frozenset[str]:
+    """The attributes of a result type that hold a document, empty when it holds none.
 
-    This is how a diagnostics-carrying entry point is found: it returns a pair, a named tuple or
-    a dataclass with the document as one of its parts rather than the document itself.
+    This is how a diagnostics-carrying entry point is found. Naming the attributes rather than
+    reporting a boolean is what keeps the answer true: the call returns the result object, and
+    only reading the named attribute off it yields a document. Reporting the call itself as a
+    document would offer document members on an object that has none, which is precisely the
+    plausible-but-wrong answer Principle IV forbids.
     """
-    for arg in typing.get_args(returned):
-        if _unwrap(arg) is document_type:
-            return True
-
     container = _unwrap(returned)
     if not inspect.isclass(container):
-        return False
+        return frozenset()
     try:
         fields = typing.get_type_hints(container)
     except Exception:
         # An unresolvable result type simply carries nothing.
         log.debug("library_surface: get_type_hints failed for %r", container, exc_info=True)
-        return False
-    return any(_unwrap(field) is document_type for field in fields.values())
+        return frozenset()
+    return frozenset(name for name, field in fields.items() if _unwrap(field) is document_type)
 
 
-def _document_factories(members: Mapping[str, Any], document_type: type) -> frozenset[str]:
-    found: set[str] = set()
-    for name, obj in _callables(members):
-        returned = _resolve_return(obj)
-        if returned is None:
-            continue
-        if _unwrap(returned) is document_type or _carries_document(returned, document_type):
-            found.add(name)
-    return frozenset(found)
+def _document_factories(returns: Mapping[str, Any], document_type: type) -> frozenset[str]:
+    """Callables that return the document itself, which is the only kind that binds directly."""
+    return frozenset(
+        name for name, returned in returns.items() if _unwrap(returned) is document_type
+    )
+
+
+def _document_carriers(
+    returns: Mapping[str, Any], document_type: type
+) -> Mapping[str, frozenset[str]]:
+    """Callables that return something holding a document, mapped to where it is held."""
+    carriers = {
+        name: attributes
+        for name, returned in returns.items()
+        if _unwrap(returned) is not document_type
+        and (attributes := _document_attributes(returned, document_type))
+    }
+    return MappingProxyType(carriers)
 
 
 def _type_names(document_type: type) -> Mapping[str, IdfKitType]:
@@ -209,24 +234,28 @@ def _type_names(document_type: type) -> Mapping[str, IdfKitType]:
 
 def derive_surface(members: Mapping[str, Any]) -> LibrarySurface:
     """Derive a surface from a library's public members, or report that it could not be."""
-    document_type = _document_type(members)
+    returns = _returns(members)
+    document_type = _document_type(returns)
     if document_type is None:
         log.warning("library_surface: no document type found; the surface is empty")
         return _EMPTY_SURFACE
 
-    factories = _document_factories(members, document_type)
+    factories = _document_factories(returns, document_type)
+    carriers = _document_carriers(returns, document_type)
     type_names = _type_names(document_type)
     if not factories or not type_names:
         log.warning("library_surface: derivation incomplete; the surface is empty")
         return _EMPTY_SURFACE
 
     log.debug(
-        "library_surface: derived %d factories and %d type names",
+        "library_surface: derived %d factories, %d carriers and %d type names",
         len(factories),
+        len(carriers),
         len(type_names),
     )
     return LibrarySurface(
         document_factories=factories,
+        document_carriers=carriers,
         type_names=type_names,
         source="derived",
     )

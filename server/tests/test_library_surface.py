@@ -77,30 +77,39 @@ class TestDerivation:
         assert expected
         assert expected <= surface.document_factories
 
-    def test_finds_a_factory_returning_a_result_that_carries_a_document(
+    def test_finds_an_entry_point_that_carries_a_document_in_a_result(
         self, surface: LibrarySurface
     ) -> None:
         # The diagnostics-carrying entry point hands the document back inside a result object.
         # A factory table written by hand had no way to notice it arriving.
         document_type = library_surface._document_type(public_members())
         assert document_type is not None
-        indirect = {
-            name
-            for name in surface.document_factories
-            if library_surface._unwrap(_returned_type(name)) is not document_type
-        }
-        assert indirect, "no factory returns a document indirectly; the carrier route is untested"
-        for name in indirect:
-            assert library_surface._carries_document(_returned_type(name), document_type)
+        assert surface.document_carriers, (
+            "nothing carries a document; the carrier route is untested"
+        )
+        for name, attributes in surface.document_carriers.items():
+            returned = _returned_type(name)
+            assert library_surface._unwrap(returned) is not document_type
+            assert attributes == library_surface._document_attributes(returned, document_type)
+
+    def test_a_carrier_is_never_also_a_factory(self, surface: LibrarySurface) -> None:
+        # The two sets answer different questions. A name in both would let the analyzer bind a
+        # result object as a document, which is the wrong answer this split exists to prevent.
+        assert not (surface.document_factories & set(surface.document_carriers))
 
     def test_the_two_named_regressions_are_covered(self, surface: LibrarySurface) -> None:
         # These two are named because they are the regressions this work exists to close, not
         # because the set is written down: the direct entry point the old table had, and the
-        # carrier entry point it did not.
-        assert {"load_idf", "load_idf_with_diagnostics"} <= surface.document_factories
+        # carrier entry point it did not. They land in different sets because they return
+        # different things, and the analyzer has to tell them apart to stay truthful.
+        assert "load_idf" in surface.document_factories
+        assert "load_idf_with_diagnostics" in surface.document_carriers
 
     def test_type_names_cover_the_three_kinds(self, surface: LibrarySurface) -> None:
-        assert set(surface.type_names.values()) == set(IdfKitType)
+        # The three container kinds, and only those. DOCUMENT_CARRIER names what an entry point
+        # returns rather than a type an annotation can mention, so no name maps to it.
+        containers = set(IdfKitType) - {IdfKitType.DOCUMENT_CARRIER}
+        assert set(surface.type_names.values()) == containers
 
     def test_type_names_are_the_library_s_own_classes(self, surface: LibrarySurface) -> None:
         for name in surface.type_names:
@@ -118,6 +127,7 @@ class TestFallback:
         empty = derive_surface({})
         assert empty.source == "fallback"
         assert empty.document_factories == frozenset()
+        assert dict(empty.document_carriers) == {}
         assert dict(empty.type_names) == {}
 
     def test_a_surface_without_a_document_type_yields_nothing(self) -> None:
@@ -133,6 +143,7 @@ class TestFallback:
         loaded = load_library_surface()
         assert loaded.source == "fallback"
         assert loaded.document_factories == frozenset()
+        assert dict(loaded.document_carriers) == {}
         assert dict(loaded.type_names) == {}
 
 

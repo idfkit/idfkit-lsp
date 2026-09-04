@@ -101,9 +101,18 @@ the process.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `document_factories` | frozen set of string | Public callables whose resolved return annotation is the document type, or a result carrying one |
+| `document_factories` | frozen set of string | Public callables whose resolved return annotation is the document type |
+| `document_carriers` | mapping of string to frozen set of string | Public callables that return a result object holding a document, mapped to the attributes that hold one |
 | `type_names` | mapping of string to inferred kind | Public type names, matched after a generic subscript is unwrapped to its origin |
 | `source` | `"derived"` or `"fallback"` | Which path produced this |
+
+The two callable sets are separate because they answer different questions, and collapsing them
+produces a wrong answer rather than a missing one. A carrier's call yields the result object, not
+the document: at `idfkit==1.0.0rc1`, `load_idf_with_diagnostics` returns a `ParseResult` holding a
+`document` and its diagnostics. Binding that call to the document kind would offer document members
+on an object that has none, which a user cannot tell apart from a real answer. So a carrier's call
+infers as `DOCUMENT_CARRIER`, which offers nothing, and reading the attribute the derivation named
+is what yields a document.
 
 If derivation yields nothing, the server records the capability as temporarily absent rather than
 substituting a written table. A server that cannot tell a document from a string offers nothing,

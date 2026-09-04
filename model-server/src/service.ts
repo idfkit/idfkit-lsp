@@ -83,9 +83,16 @@ export type LanguageServiceLoad =
        *
        * `'guard'` means the facade ran and refused, and `message` is its own,
        * verbatim. `'resolver'` means nothing was installed to run, so the
-       * message is this module's.
+       * message is this module's. `'component'` means the component is
+       * installed and threw on the way up, so the message carries its error
+       * rather than an install instruction: telling someone to install what
+       * they already have is the one thing that would not help them.
+       *
+       * This module never produces `'component'`. It re-throws that case, and
+       * the caller decides whether an installed-but-broken component is worth
+       * failing over. `main.ts` decides it is not.
        */
-      readonly origin: 'guard' | 'resolver';
+      readonly origin: 'guard' | 'resolver' | 'component';
       readonly message: string;
     };
 

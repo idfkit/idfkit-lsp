@@ -27,11 +27,13 @@ import { ModelDocuments } from '../src/documents.js';
 import {
   VERSIONS_REQUEST,
   currentOrDropped,
+  loadServiceForStartup,
   planAdvertisement,
   serves,
   unsupported,
   versionReport,
 } from '../src/main.js';
+import { NOT_INSTALLED } from '../src/service.js';
 
 import type { Capability, CapabilityState, ServerDeclaration } from '../src/capabilities.js';
 
@@ -254,5 +256,39 @@ describe('an answer the editor has moved past', () => {
     documents.close(uri);
     documents.open(uri, model.documents[0]?.languageId ?? '', 0, 'reopened');
     expect(currentOrDropped(documents, uri, 1, answer)).toBeInstanceOf(ResponseError);
+  });
+});
+
+describe('a language service that is installed and broken', () => {
+  // The absent case is covered in service.test.ts. This is the other one: the component resolves,
+  // and then throws on the way up. `service.ts` re-throws that deliberately, so something has to
+  // decide whether it is worth failing startup over, and the answer is no.
+
+  it('does not take the server down', async () => {
+    const broken = () => Promise.reject(new Error('boom from inside the component'));
+    await expect(loadServiceForStartup(broken)).resolves.toMatchObject({ ok: false });
+  });
+
+  it('carries the component own error rather than an install instruction', async () => {
+    const broken = () => Promise.reject(new Error('boom from inside the component'));
+    const load = await loadServiceForStartup(broken);
+    expect(load.ok).toBe(false);
+    if (load.ok) return;
+    expect(load.origin).toBe('component');
+    expect(load.message).toContain('boom from inside the component');
+    expect(load.message).not.toContain(NOT_INSTALLED);
+  });
+
+  it('leaves every model-text answer unadvertised, as an unreachable service must', async () => {
+    const broken = () => Promise.reject(new Error('boom'));
+    const load = await loadServiceForStartup(broken);
+    const advertisement = planAdvertisement(model, { serviceAvailable: load.ok });
+    expect(advertisement.registered).toContain('idfkit-lsp/versions');
+    expect(advertisement.registered).not.toContain('textDocument/completion');
+  });
+
+  it('still answers what it can, which is what it is running', () => {
+    // The point of staying up: a delivery path can still ask this server what it delivered.
+    expect(versionReport('model').server_id).toBe('model');
   });
 });

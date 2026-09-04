@@ -72,6 +72,7 @@ import type {
   Schema,
 } from './language-service.js';
 import type { PositionEncoding } from './positions.js';
+import type { LanguageServiceLoad, SubpathImport } from './service.js';
 import type {
   ClientCapabilities,
   CompletionParams,
@@ -495,6 +496,33 @@ export interface AdvertiseOptions {
   readonly negotiated?: Negotiated;
 }
 
+/**
+ * Reach the language service without letting a broken one take the whole server down.
+ *
+ * `loadLanguageService` re-throws anything that is not the facade's own guard, which is right for
+ * it: a component that is installed and broken is not a component that is missing, and telling
+ * someone to install what they already have would be the wrong message. It is not a reason to fail
+ * `initialize`, though. A rejected initialize is a server that is not there at all, and this one
+ * still owes an answer to `idfkit-lsp/versions`, still has to say plainly what went wrong, and
+ * still has to leave the source server serving. So the throw is caught here and reported as what
+ * it is, carrying the component's own error rather than an install instruction.
+ */
+export async function loadServiceForStartup(
+  load?: SubpathImport
+): Promise<LanguageServiceLoad> {
+  try {
+    return load === undefined ? await loadLanguageService() : await loadLanguageService(load);
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    return {
+      ok: false,
+      origin: 'component',
+      message: `The language service is installed but could not be loaded: ${detail}`,
+    };
+  }
+}
+
+
 function whyAbsent(declared: ServerDeclaration, request: string): string {
   const capability = declared.capabilities.find((entry) => entry.request === request);
   if (capability === undefined) return 'the declaration states no position on it';
@@ -620,7 +648,14 @@ class ModelServer {
 
     // Awaited before the answer goes out, so what this server advertises already accounts for
     // whether the component every model-text answer comes from is there at all.
-    const load = await loadLanguageService();
+    //
+    // `loadLanguageService` re-throws anything that is not the facade's own guard, which is right
+    // for it: a component that is installed and broken is not a component that is missing, and
+    // telling someone to install what they already have would be the wrong message. It is not a
+    // reason to fail `initialize`, though. A rejected initialize is a server that is not there at
+    // all, and this server still owes an answer to `idfkit-lsp/versions` and still has to leave
+    // the source server serving. So the throw is caught here and reported as what it is.
+    const load = await loadServiceForStartup();
     if (load.ok) {
       this.#service = load.service;
     } else {

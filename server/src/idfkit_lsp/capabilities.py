@@ -118,15 +118,21 @@ class CapabilityDeclaration:
 def load(path: Path | None = None) -> CapabilityDeclaration:
     """Read and validate a capability declaration, defaulting to the repository root's.
 
-    Cached on the resolved path, so a server that consults the declaration on every request pays
-    for reading and validating it once per process.
+    Cached on the resolved path and its modification time, so a server that consults the
+    declaration on every request pays for reading and validating it once, while a long-lived
+    process that outlives an edit to the file reads the edit rather than a stale answer.
     """
     resolved = (path if path is not None else _default_path()).resolve()
-    return _load_resolved(resolved)
+    try:
+        stamp = resolved.stat().st_mtime_ns
+    except OSError:
+        # An unreadable path is reported by _read, in its own words, rather than here.
+        stamp = 0
+    return _load_resolved(resolved, stamp)
 
 
 @lru_cache
-def _load_resolved(path: Path) -> CapabilityDeclaration:
+def _load_resolved(path: Path, stamp: int) -> CapabilityDeclaration:
     return _parse(path, _read(path))
 
 
@@ -320,6 +326,13 @@ def _check_server_set(where: str, servers: tuple[ServerDeclaration, ...]) -> Non
         missing = ", ".join(sorted(_KNOWN_SERVER_IDS - declared))
         raise DeclarationError(
             f"{where}: rule 'each server id is declared once' broken: {missing} is not declared"
+        )
+    # "Once" is both halves: every id declared, and none of them twice. A set of ids alone cannot
+    # tell a third entry repeating one apart from two entries covering both.
+    if len(declared) != len(servers):
+        raise DeclarationError(
+            f"{where}: rule 'each server id is declared once' broken: "
+            f"{len(servers)} entries declare {len(declared)} ids"
         )
 
 

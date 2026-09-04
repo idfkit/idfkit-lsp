@@ -10,7 +10,7 @@
         "node": ">=18"
     },
     "scripts": {
-        "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --packages=external --sourcemap",
+        "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:idfkit --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },

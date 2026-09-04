@@ -18,11 +18,15 @@ log = logging.getLogger(__name__)
 
 
 class IdfKitType(Enum):
-    """The three idfkit container types we track."""
+    """The three idfkit container types we track, and the result objects that hand one back."""
 
     DOCUMENT = "IDFDocument"
     COLLECTION = "IDFCollection"
     OBJECT = "IDFObject"
+    #: Not a container. What an entry point returns when it hands the document back inside a
+    #: result object alongside something else, such as the diagnostics from reading it. It
+    #: offers nothing itself; reading the attribute that holds the document is what yields one.
+    DOCUMENT_CARRIER = "document carrier"
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,8 @@ class InferredType:
 
     kind: IdfKitType
     object_type: str | None = None  # e.g. "Zone", "BuildingSurface:Detailed"
+    #: For a DOCUMENT_CARRIER, the attributes that hold a document. Derived, never written down.
+    document_attributes: frozenset[str] = frozenset()
 
     @property
     def is_document(self) -> bool:
@@ -43,6 +49,10 @@ class InferredType:
     @property
     def is_object(self) -> bool:
         return self.kind == IdfKitType.OBJECT
+
+    @property
+    def is_document_carrier(self) -> bool:
+        return self.kind == IdfKitType.DOCUMENT_CARRIER
 
 
 # ---------------------------------------------------------------------------
@@ -256,26 +266,47 @@ class IdfKitAnalyzer(ast.NodeVisitor):
         if isinstance(node, ast.Name):
             return self.scope.lookup(node.id)
 
-        # Attribute: could be idfkit.load_idf etc. — but that's handled in _infer_call
+        # Attribute: result.document on a carrier. A qualified call such as idfkit.load_idf is
+        # an Attribute too, but it only ever appears as a call's func and is handled there.
+        if isinstance(node, ast.Attribute):
+            return self._infer_attribute(node)
+
+        return None
+
+    def _infer_attribute(self, node: ast.Attribute) -> InferredType | None:
+        owner = self._infer_type(node.value)
+        if owner is None or not owner.is_document_carrier:
+            return None
+        if node.attr in owner.document_attributes:
+            return InferredType(IdfKitType.DOCUMENT)
         return None
 
     def _infer_call(self, node: ast.Call) -> InferredType | None:
-        factories = load_library_surface().document_factories
+        surface = load_library_surface()
+        factories = surface.document_factories
+        carriers = surface.document_carriers
 
-        # Direct call: load_idf(...)
-        if isinstance(node.func, ast.Name):
-            if node.func.id in factories and node.func.id in self.imported_names:
+        # Direct call: load_idf(...) or load_idf_with_diagnostics(...)
+        if isinstance(node.func, ast.Name) and node.func.id in self.imported_names:
+            if node.func.id in factories:
                 return InferredType(IdfKitType.DOCUMENT)
+            if node.func.id in carriers:
+                return InferredType(
+                    IdfKitType.DOCUMENT_CARRIER,
+                    document_attributes=carriers[node.func.id],
+                )
 
         # Qualified call: idfkit.load_idf(...)
         if isinstance(node.func, ast.Attribute):
             # module.factory()
-            if (
-                node.func.attr in factories
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id in self.imported_names
-            ):
-                return InferredType(IdfKitType.DOCUMENT)
+            if isinstance(node.func.value, ast.Name) and node.func.value.id in self.imported_names:
+                if node.func.attr in factories:
+                    return InferredType(IdfKitType.DOCUMENT)
+                if node.func.attr in carriers:
+                    return InferredType(
+                        IdfKitType.DOCUMENT_CARRIER,
+                        document_attributes=carriers[node.func.attr],
+                    )
 
             # doc.add("Zone", ...) → IDFObject("Zone")
             if node.func.attr == "add":

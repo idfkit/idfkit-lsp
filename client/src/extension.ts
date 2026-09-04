@@ -52,7 +52,14 @@ function readDeclaration(extensionPath: string): CapabilityDeclaration | undefin
     const declared = path.join(extensionPath, "capabilities.json");
     try {
         return JSON.parse(fs.readFileSync(declared, "utf8")) as CapabilityDeclaration;
-    } catch {
+    } catch (err: unknown) {
+        // Without the declaration no server has a document selector, so neither one is started.
+        // Saying so is the whole difference between an extension that is broken and one that
+        // looks installed and answers nothing.
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(
+            `idfkit: ${declared} could not be read (${msg}), so no language server was started.`
+        );
         return undefined;
     }
 }
@@ -136,6 +143,9 @@ function startSourceServer(
     const traceOutputChannel = vscode.window.createOutputChannel(
         "idfkit: source server (trace)"
     );
+    // Both channels are handed to the extension host here, so an early return below still
+    // disposes of them and a reactivation does not leave a second pair behind.
+    context.subscriptions.push(outputChannel, traceOutputChannel);
 
     const pythonPath = resolvePythonPath(context.extensionPath);
     outputChannel.appendLine(`Runtime: ${pythonPath}`);
@@ -196,6 +206,9 @@ function startModelServer(
     const traceOutputChannel = vscode.window.createOutputChannel(
         "idfkit: model server (trace)"
     );
+    // Both channels are handed to the extension host here, so an early return below still
+    // disposes of them and a reactivation does not leave a second pair behind.
+    context.subscriptions.push(outputChannel, traceOutputChannel);
 
     const bundle = path.join(context.extensionPath, "model-server", "dist", "main.js");
     if (!fs.existsSync(bundle)) {
@@ -260,19 +273,30 @@ export function activate(context: vscode.ExtensionContext): void {
     ]) {
         if (handle) {
             handles.push(handle);
-            context.subscriptions.push(handle.outputChannel);
         }
     }
 
     context.subscriptions.push(
         vscode.commands.registerCommand("idfkitLsp.restartServer", async () => {
+            // One server failing to come back must not leave the other stopped, so each restart
+            // is reported where that server's output already is and the loop carries on.
             for (const handle of handles) {
                 try {
                     await handle.client.stop();
                 } catch {
                     // The client may be in a starting or start-failed state.
                 }
-                await handle.client.start();
+                try {
+                    await handle.client.start();
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    handle.outputChannel.appendLine(
+                        `[ERROR] ${handle.id} server failed to restart: ${msg}`
+                    );
+                    void vscode.window.showErrorMessage(
+                        `The idfkit ${handle.id} server failed to restart: ${msg}`
+                    );
+                }
             }
         })
     );

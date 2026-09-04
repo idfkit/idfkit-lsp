@@ -111,7 +111,8 @@ jobs:
       - run: uv sync --extra dev --python ${{ matrix.python-version }}
         working-directory: server
 
-      - run: uv run pytest tests -v
+      # The repository checks have tests of their own, and nothing else in CI runs them.
+      - run: uv run pytest tests ../tools/tests -v
         working-directory: server
 
   test-model:

@@ -18,48 +18,52 @@ lock: ## Regenerate the lockfile
 
 .PHONY: lint
 lint: ## Run ruff linter
-	cd $(SERVER_DIR) && uv run --frozen ruff check src tests ../tools ../tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev ruff check src tests ../tools ../tests
 
 .PHONY: format
 format: ## Run ruff formatter (check only)
-	cd $(SERVER_DIR) && uv run --frozen ruff format --check src tests ../tools ../tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev ruff format --check src tests ../tools ../tests
 
 .PHONY: format-fix
 format-fix: ## Auto-format code with ruff
-	cd $(SERVER_DIR) && uv run --frozen ruff format src tests ../tools ../tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev ruff format src tests ../tools ../tests
 
 .PHONY: lint-fix
 lint-fix: ## Auto-fix lint issues with ruff
-	cd $(SERVER_DIR) && uv run --frozen ruff check --fix src tests ../tools ../tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev ruff check --fix src tests ../tools ../tests
 
 .PHONY: typecheck
 typecheck: ## Run pyright over the Python trees and tsc over the model server
-	cd $(SERVER_DIR) && uv run --frozen pyright src ../tools ../tests/protocol
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pyright src ../tools ../tests/protocol
 	cd $(MODEL_SERVER_DIR) && npm run typecheck
 
 # ── Declared records ─────────────────────────────────────────────────────
 
 .PHONY: check-declaration
 check-declaration: ## capabilities.json agrees with the manifest, the readme, and the servers
-	uv run --frozen --project $(SERVER_DIR) python -m tools.check_declaration
+	uv run --frozen --extra dev --project $(SERVER_DIR) python -m tools.check_declaration
 
 .PHONY: check-levels
 check-levels: ## levels.json agrees with every file that declares a level
-	uv run --frozen --project $(SERVER_DIR) python -m tools.check_levels
+	uv run --frozen --extra dev --project $(SERVER_DIR) python -m tools.check_levels
 
 .PHONY: check-knowledge
 check-knowledge: ## no schema table, grammar pattern, or model-text offset arithmetic
-	uv run --frozen --project $(SERVER_DIR) python -m tools.check_knowledge
+	uv run --frozen --extra dev --project $(SERVER_DIR) python -m tools.check_knowledge
 
 # ── Testing ──────────────────────────────────────────────────────────────
 
 .PHONY: test
 test: ## Run the source server's unit tests
-	cd $(SERVER_DIR) && uv run --frozen pytest tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest tests
 
 .PHONY: test-v
 test-v: ## Run the source server's unit tests, verbose
-	cd $(SERVER_DIR) && uv run --frozen pytest tests -v
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest tests -v
+
+.PHONY: test-tools
+test-tools: ## Run the repository checks' own tests
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tools/tests
 
 .PHONY: test-model
 test-model: ## Run the model server's unit tests
@@ -67,16 +71,16 @@ test-model: ## Run the model server's unit tests
 
 .PHONY: test-protocol
 test-protocol: ## Drive both servers over the protocol, with no editor
-	cd $(SERVER_DIR) && uv run --frozen pytest ../tests/protocol $(ARGS)
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tests/protocol $(ARGS)
 
 .PHONY: bench-protocol
 bench-protocol: ## Measure an answer at a cursor at the protocol boundary
-	cd $(SERVER_DIR) && uv run --frozen pytest ../tests/protocol/test_budget.py -v -s $(ARGS)
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tests/protocol/test_budget.py -v -s $(ARGS)
 
 # ── Combined ─────────────────────────────────────────────────────────────
 
 .PHONY: check
-check: lint format typecheck check-declaration check-levels check-knowledge test test-model test-protocol ## The one command a change is held to
+check: lint format typecheck check-declaration check-levels check-knowledge test test-tools test-model test-protocol ## The one command a change is held to
 
 .PHONY: fix
 fix: lint-fix format-fix ## Auto-fix lint and format issues

@@ -239,7 +239,9 @@ function parseCapability(where: string, serverId: string, raw: unknown): Capabil
   const reason = asOptionalText(data['reason'], where, subject, 'reason');
   const instead = asOptionalText(data['instead'], where, subject, 'instead');
   const tracked = asOptionalText(data['tracked'], where, subject, 'tracked');
-  const rawEditorSpecific = data['editor_specific'] ?? false;
+  // `??` would let a JSON null through as false, which the Python reader refuses. The two
+  // readers must accept exactly the same declarations, so only an absent member defaults.
+  const rawEditorSpecific = data['editor_specific'] === undefined ? false : data['editor_specific'];
   if (typeof rawEditorSpecific !== 'boolean') {
     throw new DeclarationError(`${where}: ${subject}: rule 'editor_specific is a boolean' broken`);
   }
@@ -332,6 +334,14 @@ function checkServerSet(where: string, servers: readonly ServerDeclaration[]): v
         `${where}: rule 'each server id is declared once' broken: '${id}' is not declared`,
       );
     }
+  }
+  // "Once" is both halves: every id declared, and none of them twice. A set of ids alone cannot
+  // tell a third entry repeating one apart from two entries covering both.
+  if (declared.size !== servers.length) {
+    throw new DeclarationError(
+      `${where}: rule 'each server id is declared once' broken: ` +
+        `${servers.length} entries declare ${declared.size} ids`,
+    );
   }
 }
 

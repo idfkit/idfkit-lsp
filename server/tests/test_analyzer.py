@@ -54,13 +54,35 @@ class TestDocumentFactories:
 
     def test_load_idf_with_diagnostics(self) -> None:
         # A document-producing entry point the written factory table never heard of. It hands the
-        # document back inside a result object, so only a derived surface finds it.
+        # document back inside a result object, so only a derived surface finds it, and only
+        # reading the attribute that holds it yields a document.
         src = (
             "from idfkit import load_idf_with_diagnostics\n"
-            'doc = load_idf_with_diagnostics("m.idf")\n'
+            'result = load_idf_with_diagnostics("m.idf")\n'
+            "doc = result.document\n"
         )
         bindings = IdfKitAnalyzer().analyze(src)
         assert bindings["doc"].is_document
+
+    def test_a_result_object_is_not_itself_a_document(self) -> None:
+        # The result carries a document; it is not one. Offering document members on it would be
+        # an answer a user cannot tell apart from a real one, which Principle IV forbids.
+        src = (
+            "from idfkit import load_idf_with_diagnostics\n"
+            'result = load_idf_with_diagnostics("m.idf")\n'
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert not bindings["result"].is_document
+        assert bindings["result"].is_document_carrier
+
+    def test_an_unrelated_attribute_of_a_result_is_not_a_document(self) -> None:
+        src = (
+            "from idfkit import load_idf_with_diagnostics\n"
+            'result = load_idf_with_diagnostics("m.idf")\n'
+            "problems = result.diagnostics\n"
+        )
+        bindings = IdfKitAnalyzer().analyze(src)
+        assert "problems" not in bindings
 
     def test_unrecognised_call_not_tracked(self) -> None:
         src = "from idfkit import load_idf\nresult = other_func()\n"

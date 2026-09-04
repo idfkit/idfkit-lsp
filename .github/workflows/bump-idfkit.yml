@@ -57,7 +57,14 @@ jobs:
           PY
       - name: Install the model server runtime
         working-directory: model-server
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
+      # The gate runs ruff, pyright, pytest and the checks' jsonschema, all of which live in the
+      # dev extra, so the environment is resolved with it before anything is held to it.
+      - name: Install the source server runtime
+        working-directory: server
+        run: uv sync --extra dev
       - name: Check the declared levels
         run: make check-levels
       - name: Run the gate

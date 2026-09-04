@@ -27,6 +27,13 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/idfkit_lsp"]
 
+# The declaration is read at import time by server.py, so it has to travel with the package: a
+# wheel without it cannot start at all. `_default_path` looks beside the module first, which is
+# where this lands, and walks up to the repository root otherwise, which is where a checkout
+# reads the one live file from.
+[tool.hatch.build.targets.wheel.force-include]
+"../capabilities.json" = "idfkit_lsp/capabilities.json"
+
 # -- Ruff ----------------------------------------------------------------
 
 [tool.ruff]
@@ -75,5 +82,5 @@ exclude = ["**/__pycache__"]
 # -- Pytest --------------------------------------------------------------
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "../tests/protocol"]
+testpaths = ["tests", "../tools/tests", "../tests/protocol"]
 asyncio_mode = "auto"
