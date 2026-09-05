@@ -9,7 +9,14 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { CORE_NOT_INSTALLED, CORE_SUBPATH, NODE_SUBPATH, loadInputs } from '../src/inputs.js';
+import {
+  CORE_FALLBACK,
+  CORE_NOT_INSTALLED,
+  CORE_SUBPATH,
+  NODE_FALLBACK,
+  NODE_SUBPATH,
+  loadInputs,
+} from '../src/inputs.js';
 
 import type { ClassifiedRegion } from '../src/language-service.js';
 
@@ -64,13 +71,22 @@ function fakeLibrary(options: FakeOptions = {}) {
   };
   const node = { schemas: () => bundle };
 
-  const load = (specifier: string): Promise<unknown> => {
-    if (specifier === CORE_SUBPATH) return Promise.resolve(core);
-    if (specifier === NODE_SUBPATH) return Promise.resolve(node);
-    return Promise.reject(new Error(`unexpected specifier ${specifier}`));
+  const asked: string[] = [];
+  /** Resolves whichever names the fake was told to serve, and records every specifier tried. */
+  const serving = (served: readonly string[]) => (specifier: string): Promise<unknown> => {
+    asked.push(specifier);
+    if (!served.includes(specifier)) {
+      const error = new Error(`Cannot find package '${specifier}'`);
+      Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' });
+      return Promise.reject(error);
+    }
+    if (specifier === CORE_SUBPATH || specifier === CORE_FALLBACK) return Promise.resolve(core);
+    return Promise.resolve(node);
   };
 
-  return { load, bundle, parseIdf };
+  const load = serving([CORE_SUBPATH, NODE_SUBPATH]);
+
+  return { load, serving, asked, bundle, parseIdf };
 }
 
 /** Resolved inputs, or a failure the caller of this helper was not expecting. */
@@ -208,5 +224,32 @@ describe('prose', () => {
     expect(inputs.proseFor('any text')).toBeUndefined();
     // The failure that belongs to prose does not take the schema down with it.
     expect(inputs.schemaFor('any text')).toBeDefined();
+  });
+});
+
+describe('which specifiers the inputs are resolved through', () => {
+  it('asks for the shared name first and stops there when it resolves', async () => {
+    const library = fakeLibrary();
+    const result = await loadInputs(() => {}, library.serving([CORE_SUBPATH, NODE_SUBPATH]));
+
+    expect(result.ok).toBe(true);
+    expect(library.asked).toEqual([CORE_SUBPATH, NODE_SUBPATH]);
+  });
+
+  it("falls back to the component's own name where the shared name resolves to nothing", async () => {
+    const library = fakeLibrary();
+    const result = await loadInputs(() => {}, library.serving([CORE_FALLBACK, NODE_FALLBACK]));
+
+    expect(result.ok).toBe(true);
+    expect(library.asked).toEqual([CORE_SUBPATH, CORE_FALLBACK, NODE_SUBPATH, NODE_FALLBACK]);
+  });
+
+  it('reports the shared name as what to install when neither resolves', async () => {
+    const library = fakeLibrary();
+    const result = await loadInputs(() => {}, library.serving([]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.message).toContain(CORE_NOT_INSTALLED);
   });
 });

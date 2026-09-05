@@ -21,9 +21,19 @@
  * Type checking now requires the library to be installed, because there is no longer a local
  * description to fall back on. That is the intended trade: a surface that cannot drift, in exchange
  * for a build that needs its dependency present.
+ *
+ * WHY THE TYPES COME FROM THE COMPONENT'S OWN NAME
+ *
+ * At runtime this server prefers `idfkit/language`, the shared name's subpath, and falls back to
+ * `@idfkit/language`; `service.ts` holds that order and the reason for it. The types are taken
+ * from the component directly because the shared name is not installable at all today, so there
+ * would be nothing to read them from. This is not a second opinion about the surface: the shared
+ * name's `language.d.ts` is a plain re-export of exactly these types, so the two agree by
+ * construction. The day the shared name is registered, these specifiers change and nothing else
+ * does.
  */
 
-import type * as Language from 'idfkit/language';
+import type * as Language from "@idfkit/language";
 
 /** The five answers, and the two positioning helpers that come with them. */
 export type {
@@ -36,7 +46,7 @@ export type {
   Declaration,
   DeclarationResult,
   PositionedFinding,
-} from 'idfkit/language';
+} from "@idfkit/language";
 
 /**
  * What the service takes and what it hands back that is not its own.
@@ -57,7 +67,7 @@ export type {
   DocsUrl,
   IdfDocument,
   Schema,
-} from 'idfkit';
+} from "@idfkit/core";
 
 /**
  * The service as a whole, derived from the module rather than listed.
@@ -69,10 +79,12 @@ export type {
 export type LanguageService = typeof Language;
 
 /** Severity as a finding carries it, taken from the finding's own type. */
-export type Severity = import('idfkit').ValidationError['severity'];
+export type Severity = import("@idfkit/core").ValidationError["severity"];
 
 /** Either kind of finding the service positions. */
-export type Finding = import('idfkit').ParseDiagnostic | import('idfkit').ValidationError;
+export type Finding =
+  | import("@idfkit/core").ParseDiagnostic
+  | import("@idfkit/core").ValidationError;
 
 /** The status word every cursor answer discriminates on. */
-export type AnswerStatus = Language.CompletionResult['status'];
+export type AnswerStatus = Language.CompletionResult["status"];

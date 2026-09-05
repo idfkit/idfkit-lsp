@@ -10,11 +10,13 @@
         "node": ">=18"
     },
     "scripts": {
-        "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:idfkit --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
+        "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:idfkit --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },
     "dependencies": {
+        "@idfkit/core": "0.2.0",
+        "@idfkit/language": "0.2.0",
         "vscode-languageserver": "10.1.1",
         "vscode-languageserver-textdocument": "1.0.14"
     },

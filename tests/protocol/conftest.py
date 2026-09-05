@@ -56,9 +56,22 @@ _PROBE_TIMEOUT = 60.0
 
 # Resolution is asked of the runtime rather than answered by looking for a directory: an export
 # map, a workspace link, and a candidate on NODE_PATH all resolve, and only the runtime knows.
+# The specifiers the model server accepts, in the order it accepts them. The shared name is
+# preferred and is what a user should install; the component's own name is the fallback the server
+# takes while the shared name is unregistrable on npm. The probe has to agree with that order,
+# because a probe that only knew the shared name would skip every model-text group on an install
+# the server can in fact answer from. ``model-server/src/service.ts`` holds the order itself.
+_ACCEPTED = (_SUBPATH, _COMPONENT)
+
 _PROBE = (
-    f"try {{ await import('{_SUBPATH}'); process.stdout.write('present'); }}"
-    " catch (error) { process.stdout.write('absent: ' + (error?.message ?? String(error))); }"
+    "const accepted = "
+    + repr(list(_ACCEPTED)).replace("'", '"')
+    + "; let found = false; let last = 'nothing was tried';"
+    " for (const specifier of accepted) {"
+    "   try { await import(specifier); found = true; break; }"
+    "   catch (error) { last = specifier + ': ' + (error?.message ?? String(error)); }"
+    " }"
+    " process.stdout.write(found ? 'present' : 'absent: ' + last);"
 )
 
 
@@ -176,10 +189,7 @@ def _missing_bundle() -> str:
 
 
 def _missing_component(probe: ComponentProbe) -> str:
-    return (
-        f"the language service {_COMPONENT} does not resolve at the {_SUBPATH} subpath "
-        f"({probe.detail})"
-    )
+    return f"the language service resolves under none of {', '.join(_ACCEPTED)} ({probe.detail})"
 
 
 def pytest_report_header(config: pytest.Config) -> list[str]:

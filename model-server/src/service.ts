@@ -21,13 +21,13 @@
  * not, which can only make it worse.
  */
 
-import type { LanguageService } from './language-service.js';
+import type { LanguageService } from "./language-service.js";
 
 /** The shared name's subpath. The only specifier this repository resolves. */
-export const SUBPATH = 'idfkit/language';
+export const SUBPATH = "idfkit/language";
 
 /** The component behind it, which only the facade's guard names. */
-export const COMPONENT = '@idfkit/language';
+export const COMPONENT = "@idfkit/language";
 
 /**
  * What this module says when nothing was installed to speak for itself.
@@ -39,19 +39,19 @@ export const COMPONENT = '@idfkit/language';
  */
 export const NOT_INSTALLED =
   `The model server answers about EnergyPlus model text through '${SUBPATH}', ` +
-  'and that subpath could not be resolved here.\n' +
-  '\n' +
+  "and that subpath could not be resolved here.\n" +
+  "\n" +
   `    npm install idfkit ${COMPONENT}\n` +
-  '\n' +
+  "\n" +
   `${COMPONENT} is an optional peer of idfkit, so installing idfkit alone leaves it out on ` +
-  'purpose. Until both are installed this server answers nothing about model text and says so ' +
-  'rather than guessing. The Python server, which serves Python source, is unaffected.';
+  "purpose. Until both are installed this server answers nothing about model text and says so " +
+  "rather than guessing. The Python server, which serves Python source, is unaffected.";
 
 /** Node's codes for a specifier that resolved to nothing. */
 const RESOLUTION_CODES: ReadonlySet<string> = new Set([
-  'ERR_MODULE_NOT_FOUND',
-  'MODULE_NOT_FOUND',
-  'ERR_PACKAGE_PATH_NOT_EXPORTED',
+  "ERR_MODULE_NOT_FOUND",
+  "MODULE_NOT_FOUND",
+  "ERR_PACKAGE_PATH_NOT_EXPORTED",
 ]);
 
 /**
@@ -65,12 +65,12 @@ const RESOLUTION_CODES: ReadonlySet<string> = new Set([
  * below, never on its own.
  */
 const RESOLUTION_PHRASES: readonly string[] = [
-  'Cannot find package',
-  'Cannot find module',
-  'Could not resolve',
-  'Failed to resolve',
-  'Failed to load url',
-  'is not exported from package',
+  "Cannot find package",
+  "Cannot find module",
+  "Could not resolve",
+  "Failed to resolve",
+  "Failed to load url",
+  "is not exported from package",
 ];
 
 /** The service, or why it could not be reached. */
@@ -92,23 +92,45 @@ export type LanguageServiceLoad =
        * the caller decides whether an installed-but-broken component is worth
        * failing over. `main.ts` decides it is not.
        */
-      readonly origin: 'guard' | 'resolver' | 'component';
+      readonly origin: "guard" | "resolver" | "component";
       readonly message: string;
     };
 
-/** How the subpath is reached. Replaceable so a test can drive every branch. */
-export type SubpathImport = () => Promise<unknown>;
+/** How a specifier is reached. Replaceable so a test can drive every branch. */
+export type SubpathImport = (specifier: string) => Promise<unknown>;
 
-const importSubpath: SubpathImport = () => import(SUBPATH);
+const importSubpath: SubpathImport = (specifier) =>
+  import(/* @vite-ignore */ specifier);
+
+/**
+ * The specifiers this module will resolve, in the order it prefers them.
+ *
+ * THE SHARED NAME COMES FIRST AND IS STILL THE INTENDED ONE. Reaching the component through the
+ * shared name's subpath rather than through its own package name is what
+ * `contracts/language-service-expected.md` fixes, and it is what gives a user one name to install
+ * and the facade one place to say what is missing.
+ *
+ * THE SECOND ENTRY EXISTS BECAUSE THE FIRST CANNOT BE INSTALLED. `idfkit` is not on the npm
+ * registry: the registry's similarity filter rejected the name and an appeal is pending, so the
+ * publish workflow's shared-name job is skipped on every release by design. The scoped packages
+ * ship on time and the shared name does not, which would leave this server unable to answer for a
+ * reason that has nothing to do with either repository's code.
+ *
+ * So the component is accepted under its own name when the shared name is absent. This is a
+ * fallback and not a second supported way in: nothing else in this repository names the component,
+ * the guard's message still asks for the shared name where the shared name is what is missing, and
+ * the day the appeal succeeds this array loses its second entry and nothing else changes.
+ */
+export const SPECIFIER_ORDER: readonly string[] = [SUBPATH, COMPONENT];
 
 /** The six functions `contracts/language-service.md` fixes. */
 const SURFACE = [
-  'contextAt',
-  'completionsAt',
-  'explainAt',
-  'declarationAt',
-  'findingsIn',
-  'position',
+  "contextAt",
+  "completionsAt",
+  "explainAt",
+  "declarationAt",
+  "findingsIn",
+  "position",
 ] as const;
 
 function messageOf(error: unknown): string {
@@ -117,11 +139,16 @@ function messageOf(error: unknown): string {
 
 function codeOf(error: unknown): string | undefined {
   const code: unknown = (error as { code?: unknown } | null)?.code;
-  return typeof code === 'string' ? code : undefined;
+  return typeof code === "string" ? code : undefined;
 }
 
 /** The names a failure has to mention before it is one of ours to translate. */
-const SPECIFIERS: readonly string[] = [SUBPATH, COMPONENT, "'idfkit'", '"idfkit"'];
+const SPECIFIERS: readonly string[] = [
+  SUBPATH,
+  COMPONENT,
+  "'idfkit'",
+  '"idfkit"',
+];
 
 /**
  * The subpath resolved to nothing, so no guard ran.
@@ -152,9 +179,9 @@ function isGuardRefusal(error: unknown): boolean {
 }
 
 function hasSurface(module: unknown): module is LanguageService {
-  if (typeof module !== 'object' || module === null) return false;
+  if (typeof module !== "object" || module === null) return false;
   const candidate = module as Record<string, unknown>;
-  return SURFACE.every((name) => typeof candidate[name] === 'function');
+  return SURFACE.every((name) => typeof candidate[name] === "function");
 }
 
 /**
@@ -170,17 +197,30 @@ export async function loadLanguageService(
   load: SubpathImport = importSubpath,
 ): Promise<LanguageServiceLoad> {
   let module: unknown;
-  try {
-    module = await load();
-  } catch (error) {
-    if (isUnresolved(error)) {
-      return { ok: false, origin: 'resolver', message: NOT_INSTALLED };
+  // The first specifier that resolves wins. A specifier that resolves to nothing is not an answer
+  // yet, because the next one may resolve; only the last failure is reported, and it is reported
+  // in the terms the first specifier deserves, since the shared name is what a user should install.
+  let unresolved: LanguageServiceLoad | undefined;
+  for (const specifier of SPECIFIER_ORDER) {
+    try {
+      module = await load(specifier);
+      unresolved = undefined;
+      break;
+    } catch (error) {
+      if (isUnresolved(error)) {
+        unresolved = { ok: false, origin: "resolver", message: NOT_INSTALLED };
+        continue;
+      }
+      // The guard ran, which means the shared name is installed and the component is not. That is
+      // a real answer from a real facade, and trying the component's own name after it would only
+      // fail again in worse words.
+      if (isGuardRefusal(error)) {
+        return { ok: false, origin: "guard", message: messageOf(error) };
+      }
+      throw error;
     }
-    if (isGuardRefusal(error)) {
-      return { ok: false, origin: 'guard', message: messageOf(error) };
-    }
-    throw error;
   }
+  if (unresolved !== undefined) return unresolved;
 
   // Resolved, but not carrying what the contract fixes. That is a broken
   // install rather than an absent one, and it is still an absence: a server
@@ -188,11 +228,11 @@ export async function loadLanguageService(
   if (!hasSurface(module)) {
     return {
       ok: false,
-      origin: 'resolver',
+      origin: "resolver",
       message:
         `'${SUBPATH}' resolved, but does not carry the language service surface ` +
-        `(${SURFACE.join(', ')}). Check that the installed ${COMPONENT} matches the idfkit ` +
-        'it is a peer of; the two are released in lockstep.',
+        `(${SURFACE.join(", ")}). Check that the installed ${COMPONENT} matches the idfkit ` +
+        "it is a peer of; the two are released in lockstep.",
     };
   }
 

@@ -71,12 +71,32 @@
       "declared_in": [
         "model-server/package.json"
       ],
-      "resolution": "optional peer, not installed by this repository. Present only where a user has installed it alongside the language service.",
+      "resolution": "optional peer, not installed by this repository, and not installable from the npm registry today. Preferred at run time where a user has it, and resolved ahead of the scoped packages by both service.ts and inputs.ts.",
       "level": "0.0.0",
-      "current": "0.0.0",
+      "current": "0.2.0",
       "standing": "behind_temporary",
-      "reason": "The facade is not published to the npm registry. This repository declares the level it will resolve and reaches the component through a guard that names what to install when it is absent, which is the only behaviour available until it is published.",
-      "tracked": "@idfkit/language, feature 005 of the unification, and the first publication of the second language's facade."
+      "reason": "The shared install name is not on the npm registry. The registry's similarity filter rejected it and an appeal is pending, so the publish workflow's shared-name job is skipped on every release by design while the scoped packages ship on schedule. The pin stays at the level this repository can actually resolve, which is none, and the components are reached under their own names until the appeal succeeds.",
+      "tracked": "The npm name appeal for 'idfkit'. When it succeeds, this entry takes the published level, and the fallback specifiers in model-server/src/service.ts and model-server/src/inputs.ts are deleted."
+    },
+    {
+      "name": "@idfkit/core",
+      "declared_in": [
+        "model-server/package.json"
+      ],
+      "resolution": "exact pin, resolved from the npm registry",
+      "level": "0.2.0",
+      "current": "0.2.0",
+      "standing": "current"
+    },
+    {
+      "name": "@idfkit/language",
+      "declared_in": [
+        "model-server/package.json"
+      ],
+      "resolution": "exact pin, resolved from the npm registry",
+      "level": "0.2.0",
+      "current": "0.2.0",
+      "standing": "current"
     }
   ]
 }

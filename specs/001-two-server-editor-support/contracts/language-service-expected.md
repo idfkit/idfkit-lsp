@@ -23,8 +23,22 @@ to the user unchanged. It already names what to install; rewording it would make
 and the model server is ESM. A synchronous require of the subpath cannot work. The runtime floor
 follows from this, not from taste.
 
-**Not yet fixed**: the component's exact name. Derived from the weather pattern it will be the
-shared name plus a subpath, with a scoped package behind it. The naming register is what settles it.
+**Fixed since**: the component is `@idfkit/language`, reached at `idfkit/language`, exactly on the
+weather pattern. Both shipped at 0.2.0.
+
+**Departure, recorded rather than silent**: this repository also accepts `@idfkit/language`,
+`@idfkit/core` and `@idfkit/core/node` under their own names, after trying the shared name's
+subpaths and only when those resolve to nothing. The shared name is not on the npm registry: the
+registry's similarity filter rejected it and an appeal is pending, so `idfkit-js`'s publish workflow
+skips its shared-name job on every release by design while the scoped packages ship on schedule.
+Without the fallback this server could not answer at all, for a reason belonging to neither
+repository's code.
+
+The rule above is not abandoned. The shared name is still tried first and is still what the guard
+tells a user to install; the fallback resolves the same modules, because the shared name's
+`index.js`, `node.js` and `language.js` are re-exports of exactly those packages. The order lives in
+`service.ts` and `inputs.ts` and nowhere else, and `levels.json` records the appeal as what closes
+it. When the name is registered, the second entry in each list is deleted and nothing else changes.
 
 ## What is called
 

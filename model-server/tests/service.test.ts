@@ -19,7 +19,13 @@ import {
   isAnswer,
 } from '../src/absence.js';
 import { ModelDocuments } from '../src/documents.js';
-import { COMPONENT, loadLanguageService, NOT_INSTALLED, SUBPATH } from '../src/service.js';
+import {
+  COMPONENT,
+  SPECIFIER_ORDER,
+  loadLanguageService,
+  NOT_INSTALLED,
+  SUBPATH,
+} from '../src/service.js';
 
 import type { ServiceHandle } from '../src/documents.js';
 import type { CompletionResult } from '../src/language-service.js';
@@ -302,5 +308,65 @@ describe('the three absences, kept three', () => {
       reason: 'noSchema',
       typeName: undefined,
     });
+  });
+});
+
+describe('which specifier the service is reached through', () => {
+  it('prefers the shared name, which is the one a user should install', () => {
+    expect(SPECIFIER_ORDER[0]).toBe(SUBPATH);
+  });
+
+  it('accepts the component under its own name after it', () => {
+    expect(SPECIFIER_ORDER).toEqual([SUBPATH, COMPONENT]);
+  });
+
+  it('asks for the shared name first and stops there when it resolves', async () => {
+    const asked: string[] = [];
+    const result = await loadLanguageService((specifier) => {
+      asked.push(specifier);
+      return Promise.resolve(stubService());
+    });
+
+    expect(result.ok).toBe(true);
+    expect(asked).toEqual([SUBPATH]);
+  });
+
+  it('falls back to the component when the shared name resolves to nothing', async () => {
+    const asked: string[] = [];
+    const result = await loadLanguageService((specifier) => {
+      asked.push(specifier);
+      if (specifier === SUBPATH) return Promise.reject(resolverError(SUBPATH));
+      return Promise.resolve(stubService());
+    });
+
+    expect(result.ok).toBe(true);
+    expect(asked).toEqual([SUBPATH, COMPONENT]);
+  });
+
+  it('reports the shared name as what to install when neither resolves', async () => {
+    const result = await loadLanguageService((specifier) =>
+      Promise.reject(resolverError(specifier)),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    // The fallback exists so this server can answer, not so a user learns to install the
+    // component directly. What to install is still the shared name.
+    expect(result.message).toBe(NOT_INSTALLED);
+  });
+
+  it("does not try the component after the facade's guard has already spoken", async () => {
+    const asked: string[] = [];
+    const guard = new Error(`idfkit/language requires the optional component '${COMPONENT}'`);
+    const result = await loadLanguageService((specifier) => {
+      asked.push(specifier);
+      return Promise.reject(guard);
+    });
+
+    if (result.ok) throw new Error('unreachable');
+    // The guard running means the shared name is installed and the component is not. Asking for
+    // the component next would fail again, in worse words than the guard's own.
+    expect(result.origin).toBe('guard');
+    expect(asked).toEqual([SUBPATH]);
   });
 });

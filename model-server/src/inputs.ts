@@ -37,12 +37,24 @@ import type {
   IdfDocument,
   ProsePool,
   Schema,
-} from './language-service.js';
-import type { CallerInputs } from './main.js';
+} from "./language-service.js";
+import type { CallerInputs } from "./main.js";
 
-/** The subpaths this module resolves. Both are the shared name's, never a component's own. */
-export const CORE_SUBPATH = 'idfkit';
-export const NODE_SUBPATH = 'idfkit/node';
+/**
+ * The specifiers this module resolves, each with the fallback it accepts.
+ *
+ * The shared name is preferred and is the one a user should install. It is not on the npm registry
+ * today, because the registry's similarity filter rejected the name and an appeal is pending, so
+ * the component's own name is accepted after it. `service.ts` carries the same pair and the same
+ * reason for the language service; both lose their fallback on the day the appeal succeeds.
+ *
+ * The shared name's `index.js` and `node.js` are plain re-exports of exactly these two, so the
+ * fallback resolves the same code and not a substitute for it.
+ */
+export const CORE_SUBPATH = "idfkit";
+export const CORE_FALLBACK = "@idfkit/core";
+export const NODE_SUBPATH = "idfkit/node";
+export const NODE_FALLBACK = "@idfkit/core/node";
 
 /**
  * What this module says when the library is not installed.
@@ -52,12 +64,12 @@ export const NODE_SUBPATH = 'idfkit/node';
  */
 export const CORE_NOT_INSTALLED =
   `The model server resolves schemas, parses models and classifies text through '${CORE_SUBPATH}', ` +
-  'and that could not be resolved here.\n' +
-  '\n' +
+  "and that could not be resolved here.\n" +
+  "\n" +
   `    npm install ${CORE_SUBPATH}\n` +
-  '\n' +
-  'Until it is installed this server answers nothing about model text and says so rather than ' +
-  'guessing. The Python server, which serves Python source, is unaffected.';
+  "\n" +
+  "Until it is installed this server answers nothing about model text and says so rather than " +
+  "guessing. The Python server, which serves Python source, is unaffected.";
 
 /** The members of the library this module calls, and nothing more. */
 interface CoreSurface {
@@ -103,7 +115,8 @@ export type Warm = (text: string) => Promise<void>;
 
 type Importer = (specifier: string) => Promise<unknown>;
 
-const importSubpath: Importer = (specifier) => import(/* @vite-ignore */ specifier);
+const importSubpath: Importer = (specifier) =>
+  import(/* @vite-ignore */ specifier);
 
 /**
  * Called when a schema that was not in hand has finished loading.
@@ -126,14 +139,26 @@ export async function loadInputs(
   onSchemaArrived: SchemaArrived = () => {},
   load: Importer = importSubpath,
 ): Promise<InputsLoad> {
+  /** The first specifier that resolves, or the last failure, reported in the shared name's terms. */
+  async function resolve<T>(preferred: string, fallback: string): Promise<T> {
+    try {
+      return (await load(preferred)) as T;
+    } catch {
+      return (await load(fallback)) as T;
+    }
+  }
+
   let core: CoreSurface;
   let node: NodeSurface;
   try {
-    core = (await load(CORE_SUBPATH)) as CoreSurface;
-    node = (await load(NODE_SUBPATH)) as NodeSurface;
+    core = await resolve<CoreSurface>(CORE_SUBPATH, CORE_FALLBACK);
+    node = await resolve<NodeSurface>(NODE_SUBPATH, NODE_FALLBACK);
   } catch (error: unknown) {
     const stated = error instanceof Error ? error.message : String(error);
-    return { ok: false, message: `${CORE_NOT_INSTALLED}\n\nThe resolver said: ${stated}` };
+    return {
+      ok: false,
+      message: `${CORE_NOT_INSTALLED}\n\nThe resolver said: ${stated}`,
+    };
   }
 
   const bundle = node.schemas();
@@ -208,7 +233,10 @@ export async function loadInputs(
     // The pool is version-independent and idempotent to ask for, so it is requested alongside the
     // first schema rather than on a path of its own. A failure to read it leaves prose absent,
     // which is a state every answer already carries; it is not a reason to fail the schema too.
-    const withProse = bundle.prose() === undefined ? bundle.loadProse().catch(() => undefined) : undefined;
+    const withProse =
+      bundle.prose() === undefined
+        ? bundle.loadProse().catch(() => undefined)
+        : undefined;
 
     const declared = core.getIdfVersion(text);
     if (declared !== undefined && bundle.loaded(declared) === undefined) {
