@@ -1,0 +1,39 @@
+# Ruff for the trees that sit outside `server/`.
+#
+# WHY THIS FILE EXISTS. Ruff resolves configuration per file, by walking up from the file to the
+# nearest configuration. `server/src` and `server/tests` reach `server/pyproject.toml`; `tools/` and
+# `tests/` reach nothing, so they were linted under whatever defaults the installed ruff happened to
+# ship. That is how a rule this project deliberately ignores, SIM102, failed continuous integration
+# while `make lint` passed: the two runs were not enforcing the same rules, and neither was
+# enforcing the ones written down.
+#
+# The settings below are `server/pyproject.toml`'s, and the two must not drift. Nothing here is
+# looser than what the package is held to.
+
+target-version = "py310"
+line-length = 99
+src = ["src", "tests", "../tools", "../tests"]
+
+[lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "SIM",   # flake8-simplify
+    "TC",    # flake8-type-checking
+    "RUF",   # ruff-specific rules
+]
+ignore = [
+    "E501",   # line length handled by formatter
+    "SIM102", # nested ifs can be clearer than combined conditions
+    "SIM108", # ternary can reduce readability for multi-line logic
+    "TC001",  # moving runtime imports to TYPE_CHECKING breaks code
+    "TC002",  # same — third-party imports used at runtime
+    "B019",   # lru_cache on methods is intentional (singleton class)
+]
+
+[lint.isort]
+known-first-party = ["idfkit_lsp"]
