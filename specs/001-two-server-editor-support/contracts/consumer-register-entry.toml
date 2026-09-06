@@ -1,0 +1,57 @@
+# This repository's entry for the consumer register.
+#
+# Destination: governance/consumers.toml in idfkit-conformance, the register feature 004 of the
+# unification defines. It is submitted there rather than held here, because the register's whole
+# point is one place to ask the question across nine consumers.
+#
+# What is enforceable on this side is levels.json and tools/check_levels.py. The register points at
+# levels.json and holds no level of its own, so a bump changes nothing here and a change of shape
+# (an entry point, a means of resolution, a declaration location) changes both.
+#
+# Shape follows the contract at
+# idfkit-unification/specs/004-integrate-unified-releases/contracts/consumer-register.md
+
+[[consumer]]
+id = "idfkit-lsp"
+repository = "idfkit/idfkit-lsp"
+role = "builds"
+
+  # The source server. Python, resolved from PyPI as an exact pin, declared twice and checked for
+  # agreement by tools/check_levels.py.
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "server/pyproject.toml"
+    locator = "project.dependencies[idfkit]"
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "server/uv.lock"
+    locator = "package[name=idfkit].version"
+    form = "exact"
+
+  # The model server. The second language's facade is an optional peer rather than a dependency,
+  # because the language service it reaches is installed by a user who wants editor support for
+  # model text and by nobody else. It is not yet published, which is what the lag records.
+  [[consumer.libraries]]
+  library = "javascript"
+  entry_point = "shared-name"
+  means = "optional-peer"
+    [[consumer.libraries.declared_at]]
+    path = "model-server/package.json"
+    locator = "peerDependencies[idfkit]"
+    form = "exact"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    reason = "The facade and the language service component it exposes are not published. This repository declares the level it will resolve and reaches the component through the facade's own guard, which names what to install when it is absent. Closed by feature 005 of the unification and the first publication of the second language's facade."
+
+  [consumer.rehearsal]
+  install = "uv-wheel and npm-tarball"
+  typecheck = "make typecheck"
+  test = "make check"
+
+# The self-check required of every consumer by the register contract is tools/check_levels.py:
+# it asserts that every declaration path exists, that every locator resolves, and that declarations
+# for one resolution agree with each other. It deliberately does not compare against the current
+# published level, because a consumer is allowed to be behind and is not allowed to be undescribed.

@@ -2,13 +2,22 @@
 .git/**
 .github/**
 .vscode/**
+.specify/**
 CLAUDE.md
 Makefile
+specs/**
 
 # Client source (compiled output is in client/dist/)
 client/src/**
 client/node_modules/**
 client/tsconfig.json
+
+# Model server source (bundled output is in model-server/dist/)
+model-server/src/**
+model-server/tests/**
+model-server/node_modules/**
+model-server/tsconfig.json
+model-server/package-lock.json
 
 # Server development artifacts
 server/.venv/**
@@ -16,9 +25,18 @@ server/tests/**
 server/uv.lock
 server/.python-version
 
+# The protocol suite and the repository checks are not shipped
+tests/**
+tools/**
+
 # Build artifacts
 node_modules/**
 **/__pycache__/**
 **/.pytest_cache/**
 **/.ruff_cache/**
 *.vsix
+
+# Kept deliberately: model-server/dist/, capabilities.json, levels.json
+!model-server/dist/**
+!capabilities.json
+!levels.json

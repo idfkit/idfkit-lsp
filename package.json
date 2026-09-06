@@ -1,8 +1,8 @@
 {
     "name": "idfkit-lsp",
     "displayName": "idfkit Language Support",
-    "description": "Intelligent editing support for Python files using the idfkit EnergyPlus library",
-    "version": "0.1.0",
+    "description": "Editor support for two things: Python source that uses the idfkit library, and EnergyPlus model text. Python files get completion, hover and signature help. Model files get classification, findings, completion, explanation and declaration lookup, served by a second server. What is served and what is not is declared in capabilities.json and nowhere else.",
+    "version": "0.2.0",
     "publisher": "idfkit",
     "license": "MIT",
     "repository": {
@@ -10,16 +10,29 @@
         "url": "https://github.com/idfkit/idfkit-lsp"
     },
     "engines": {
-        "vscode": "^1.78.0"
+        "vscode": "^1.86.0"
     },
     "categories": [
         "Programming Languages"
     ],
     "activationEvents": [
-        "onLanguage:python"
+        "onLanguage:python",
+        "onLanguage:idf"
     ],
     "main": "./client/dist/extension.js",
     "contributes": {
+        "languages": [
+            {
+                "id": "idf",
+                "aliases": [
+                    "EnergyPlus Input Data File",
+                    "IDF"
+                ],
+                "extensions": [
+                    ".idf"
+                ]
+            }
+        ],
         "configuration": {
             "type": "object",
             "title": "idfkit Language Server",
@@ -27,7 +40,12 @@
                 "idfkitLsp.pythonPath": {
                     "type": "string",
                     "default": "python3",
-                    "description": "Path to Python interpreter with idfkit and idfkit-lsp installed"
+                    "description": "Path to the Python interpreter that has idfkit and idfkit-lsp installed. This is what runs the source server."
+                },
+                "idfkitLsp.nodePath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to a Node runtime for the model server. Leave empty to use the editor's own runtime, which needs no separate install."
                 },
                 "idfkitLsp.trace.server": {
                     "type": "string",
@@ -37,24 +55,29 @@
                         "verbose"
                     ],
                     "default": "off",
-                    "description": "Traces the communication between VS Code and the language server"
+                    "description": "Traces the communication between VS Code and the language servers"
                 }
             }
         },
         "commands": [
             {
                 "command": "idfkitLsp.restartServer",
-                "title": "idfkit: Restart Language Server"
+                "title": "idfkit: Restart Language Servers"
+            },
+            {
+                "command": "idfkitLsp.openDocumentation",
+                "title": "idfkit: Open Documentation"
             }
         ]
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "npm run compile && npm run compile:model-server",
         "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "compile:model-server": "npm --prefix model-server run build",
         "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch"
     },
     "devDependencies": {
-        "@types/vscode": "^1.78.0",
+        "@types/vscode": "^1.86.0",
         "esbuild": "^0.27.3",
         "typescript": "^5.0.0"
     }

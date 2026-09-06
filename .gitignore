@@ -22,8 +22,11 @@ env/
 
 # Node
 node_modules/
-package-lock.json
 client/dist/
+model-server/dist/
+
+# Lockfiles are tracked deliberately: `npm ci` needs them, and Principle III's exact pins are only
+# reproducible down to the transitive level with them.
 
 # VS Code extension
 *.vsix

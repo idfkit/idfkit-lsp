@@ -1,0 +1,133 @@
+{
+  "version": 2,
+  "retained_knowledge": [
+    {
+      "subject": "the shape of the first language's own API: that a subscript on a document yields a collection, and that adding yields an object",
+      "where": "server/src/idfkit_lsp/analyzer.py",
+      "reason": "No library publishes its API shape as data, and inference over first-language source is the source server's whole job. The drift-prone half, the names of the entry points and the recognised types, is derived from the installed library by library_surface.py and is not written down. What remains is shape, not schema: no object type and no field name appears in that file, and tools/check_knowledge.py is what keeps that true.",
+      "tracked": "Removing it would mean implementing a type checker, which is not smaller. Recorded in plan.md Complexity Tracking, and covered by tests that fail when the library renames the members involved."
+    },
+    {
+      "subject": "arithmetic over model text, converting the unit the language service states into the unit the protocol requires",
+      "where": "model-server/src/positions.ts",
+      "reason": "The protocol demands positions in a unit the language service does not speak, and feature 005 requires conversion to be possible without the service knowing a protocol exists, which places the conversion on this side by construction. It converts between text encodings, not between meanings: it needs no schema and no grammar.",
+      "tracked": "Permanent by construction. Confined to one module, which tools/check_knowledge.py exempts by name and nothing else."
+    }
+  ],
+  "servers": [
+    {
+      "id": "source",
+      "runtime": "Python 3.10 through 3.13, pygls over stdio",
+      "documents": [
+        {
+          "language_id": "python",
+          "extensions": [
+            ".py",
+            ".pyi"
+          ]
+        }
+      ],
+      "capabilities": [
+        {
+          "request": "textDocument/completion",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/hover",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/signatureHelp",
+          "state": "present"
+        },
+        {
+          "request": "workspace/executeCommand",
+          "state": "present",
+          "editor_specific": true
+        },
+        {
+          "request": "idfkit-lsp/versions",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/semanticTokens/full",
+          "state": "absent_permanent",
+          "reason": "This server reads Python source. Classifying model text needs the IDF syntax layer, which lives in the language service and is reached from the second language, not from here. Installing this server with pip alone therefore yields no answers about model text, and no amount of work here would change that.",
+          "instead": "The model server, which serves model text and is bundled in the editor extension."
+        },
+        {
+          "request": "textDocument/diagnostic",
+          "state": "absent_permanent",
+          "reason": "Findings about model text are produced by reading and validating a model, which is the language service's work. This server holds no grammar and no schema table and must not acquire one.",
+          "instead": "The model server, which serves model text and is bundled in the editor extension."
+        },
+        {
+          "request": "textDocument/publishDiagnostics",
+          "state": "absent_permanent",
+          "reason": "This server has no findings to publish about model text, for the same reason it answers no diagnostic request about it.",
+          "instead": "The model server, which serves model text and is bundled in the editor extension."
+        },
+        {
+          "request": "textDocument/definition",
+          "state": "absent_permanent",
+          "reason": "Where a name is declared in model text is a question about the model's reference graph, answered by the language service. This server answers questions about Python source.",
+          "instead": "The model server, which serves model text and is bundled in the editor extension."
+        }
+      ]
+    },
+    {
+      "id": "model",
+      "runtime": "Node 18 or newer, ESM, launched on the editor's own runtime",
+      "documents": [
+        {
+          "language_id": "idf",
+          "extensions": [
+            ".idf"
+          ]
+        }
+      ],
+      "capabilities": [
+        {
+          "request": "idfkit-lsp/versions",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/semanticTokens/full",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/diagnostic",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/publishDiagnostics",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/completion",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/hover",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/definition",
+          "state": "present"
+        },
+        {
+          "request": "textDocument/signatureHelp",
+          "state": "absent_permanent",
+          "reason": "Signature help describes a call in a programming language. Model text has no calls, so there is no signature to help with.",
+          "instead": "Hover on a field, once the language service ships, reports what the schema says about it."
+        },
+        {
+          "request": "workspace/executeCommand",
+          "state": "absent_permanent",
+          "reason": "The one command this repository exposes resolves a documentation address for a Python object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor.",
+          "instead": "The source server, which answers workspace/executeCommand for the documentation lookup."
+        }
+      ]
+    }
+  ]
+}
