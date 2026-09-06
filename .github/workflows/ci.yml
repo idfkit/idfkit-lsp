@@ -16,12 +16,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The version is pinned, and pinned to the one `server/pyproject.toml` declares. Without it
+      # the action resolves the floor to whatever is newest that day, so a ruff release adding a
+      # rule inside a selected category turns this red with no change to this repository. Principle
+      # III asks for an exact level on everything resolved here, and a linter that decides whether
+      # a change may land is resolved here.
       - uses: astral-sh/ruff-action@v3
         with:
+          version: "0.16.6"
           src: server/src server/tests tools tests
 
       - uses: astral-sh/ruff-action@v3
         with:
+          version: "0.16.6"
           src: server/src server/tests tools tests
           args: format --check
 
