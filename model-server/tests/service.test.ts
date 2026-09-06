@@ -2,12 +2,13 @@
  * The language service boundary with the component absent (T030), and the
  * document store that feeds it (T034).
  *
- * `@idfkit/language` is not published, and this repository does not install it.
- * So the absent path is not a hypothetical here: it is what runs, and these
- * tests are written to pass in exactly that state rather than to be enabled
- * later. What they pin is the behaviour `contracts/model-server.md` point 8
- * requires, that the component's absence is a message and not a crash, and the
- * rule that the message is the guard's own words wherever a guard spoke.
+ * `@idfkit/language` ships now and this repository installs it, so the absent
+ * path is no longer what runs here. Every test below injects the failure it is
+ * about, which is what the quickstart's scenario 7 requires: the path where the
+ * component is missing must be tested whether or not it is installed. What they
+ * pin is the behaviour `contracts/model-server.md` point 8 requires, that the
+ * component's absence is a message and not a crash, and the rule that the
+ * message is the guard's own words wherever a guard spoke.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,7 @@ import {
 import { ModelDocuments } from '../src/documents.js';
 import {
   COMPONENT,
+  SHARED_NAME,
   SPECIFIER_ORDER,
   loadLanguageService,
   NOT_INSTALLED,
@@ -108,7 +110,11 @@ describe('loadLanguageService with the component absent', () => {
     if (result.ok) throw new Error('unreachable');
     expect(result.origin).toBe('resolver');
     expect(result.message).toBe(NOT_INSTALLED);
-    expect(result.message).toContain(`npm install idfkit ${COMPONENT}`);
+    // The component's own name, not the shared name. This is the one place this repository does
+    // not send a user to the shared name, because the shared name is not on npm and an
+    // instruction that reads better but fails is worse than one that works.
+    expect(result.message).toContain(`npm install ${COMPONENT}`);
+    expect(result.message).toContain(SHARED_NAME);
   });
 
   it('treats an unresolvable subpath the same way', async () => {

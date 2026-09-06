@@ -63,13 +63,16 @@ export const NODE_FALLBACK = "@idfkit/core/node";
  * about the shared name itself, which is a different install and a different sentence.
  */
 export const CORE_NOT_INSTALLED =
-  `The model server resolves schemas, parses models and classifies text through '${CORE_SUBPATH}', ` +
-  "and that could not be resolved here.\n" +
+  "The model server resolves schemas, parses models and classifies text through idfkit, and " +
+  `neither '${CORE_SUBPATH}' nor '${CORE_FALLBACK}' could be resolved here.\n` +
   "\n" +
-  `    npm install ${CORE_SUBPATH}\n` +
+  `    npm install ${CORE_FALLBACK}\n` +
   "\n" +
-  "Until it is installed this server answers nothing about model text and says so rather than " +
-  "guessing. The Python server, which serves Python source, is unaffected.";
+  `The shared install name, '${CORE_SUBPATH}', is the one this server prefers and is not on the ` +
+  "npm registry yet: the registry's similarity filter rejected the name and an appeal is " +
+  "pending. So install the package under its own name for now. Until it is there this server " +
+  "answers nothing about model text and says so rather than guessing. The Python server, which " +
+  "serves Python source, is unaffected.";
 
 /** The members of the library this module calls, and nothing more. */
 interface CoreSurface {

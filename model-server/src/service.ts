@@ -26,26 +26,36 @@ import type { LanguageService } from "./language-service.js";
 /** The shared name's subpath. The only specifier this repository resolves. */
 export const SUBPATH = "idfkit/language";
 
-/** The component behind it, which only the facade's guard names. */
+/** The component behind it, and the name a user can actually install today. */
 export const COMPONENT = "@idfkit/language";
+
+/** The shared install name, which is what the subpath above belongs to. */
+export const SHARED_NAME = "idfkit";
 
 /**
  * What this module says when nothing was installed to speak for itself.
  *
  * Distinct from the guard's message on purpose. The guard's message assumes the
  * shared name is present and only the optional component is missing; this one
- * covers the case where neither is, which is the case in a checkout of this
- * repository today, because this repository does not install either.
+ * covers the case where neither name resolves at all.
+ *
+ * It names the component rather than the shared name as what to install, which
+ * is the one place this repository does not send a user to the shared name. It
+ * cannot: `idfkit` is not on the npm registry, so the instruction that reads
+ * best would be the instruction that fails. When the name is registered this
+ * message goes back to asking for it.
  */
 export const NOT_INSTALLED =
-  `The model server answers about EnergyPlus model text through '${SUBPATH}', ` +
-  "and that subpath could not be resolved here.\n" +
+  "The model server answers about EnergyPlus model text through the idfkit language service, " +
+  `and neither '${SUBPATH}' nor '${COMPONENT}' could be resolved here.\n` +
   "\n" +
-  `    npm install idfkit ${COMPONENT}\n` +
+  `    npm install ${COMPONENT}\n` +
   "\n" +
-  `${COMPONENT} is an optional peer of idfkit, so installing idfkit alone leaves it out on ` +
-  "purpose. Until both are installed this server answers nothing about model text and says so " +
-  "rather than guessing. The Python server, which serves Python source, is unaffected.";
+  `The shared install name, '${SHARED_NAME}', is the one this server prefers and is not on the ` +
+  "npm registry yet: the registry's similarity filter rejected the name and an appeal is " +
+  `pending. So install the component under its own name for now. Until it is there this server ` +
+  "answers nothing about model text and says so rather than guessing. The Python server, which " +
+  "serves Python source, is unaffected.";
 
 /** Node's codes for a specifier that resolved to nothing. */
 const RESOLUTION_CODES: ReadonlySet<string> = new Set([
