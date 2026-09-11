@@ -30,9 +30,15 @@ packages = ["src/idfkit_lsp"]
 # The declaration is read at import time by server.py, so it has to travel with the package: a
 # wheel without it cannot start at all. `_default_path` looks beside the module first, which is
 # where this lands, and walks up to the repository root otherwise, which is where a checkout
-# reads the one live file from.
+# reads the one live file from. The licence travels the same way, from the repository root.
+#
+# ONLY A WHEEL IS PUBLISHED. Both files live above this directory, and a source distribution of it
+# cannot carry a parent path: `uv build` would make the sdist without them and then fail to build a
+# wheel from it (measured on main, 2026-09-11). So release.yml builds the wheel straight from the
+# tree with `uv build --wheel`, the same build an editable install makes, and publishes that.
 [tool.hatch.build.targets.wheel.force-include]
 "../capabilities.json" = "idfkit_lsp/capabilities.json"
+"../LICENSE" = "idfkit_lsp/LICENSE"
 
 # -- Ruff ----------------------------------------------------------------
 

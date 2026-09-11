@@ -1,0 +1,72 @@
+# Publish the source server to PyPI when a GitHub release is published.
+#
+# This is how idfkit-lsp first reaches the package index. Until it existed the server had never been
+# published, so the editor plugin's `uvx --from idfkit-lsp` resolved nothing on a clean machine
+# (idfkit/idfkit-plugin#17), and the plugin's language-server path could not be pinned to a level
+# (feature 004 of the unification, FR-015 and T114).
+#
+# TRUSTED PUBLISHING, NO TOKEN. PyPI exchanges the OIDC token GitHub mints for this job for
+# publish rights, as idfkit-mcp's release does, so there is no long-lived secret to store or
+# rotate. PREREQUISITE, ONCE: register a pending trusted publisher on pypi.org for the project
+# `idfkit-lsp` with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`. Until that
+# exists the publish step fails with an authentication error and nothing is uploaded.
+#
+# THE RELEASE TAG AND THE DECLARED VERSION ARE ONE FACT. The job refuses a release whose tag
+# (`v0.2.0`) does not match `server/pyproject.toml`, rather than rewriting the version from the tag,
+# so the repository never lies about what it published.
+
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Refuse a release whose tag is not the declared version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          declared=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "${TAG#v}" != "$declared" ]; then
+            echo "::error title=Tag and version disagree::release $TAG, but server/pyproject.toml declares $declared. Correct one of them; nothing was published."
+            exit 1
+          fi
+
+      # The wheel only. A source distribution of server/ cannot carry capabilities.json or the
+      # licence, both of which live above it; see the comment in server/pyproject.toml.
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
+
+      # A wheel without capabilities.json cannot start: server.py reads it at import time.
+      - name: The wheel carries what the server needs to start
+        run: |
+          python3 - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")
+          assert len(wheel) == 1, f"expected one wheel, found {wheel}"
+          names = zipfile.ZipFile(wheel[0]).namelist()
+          assert any(n.endswith("idfkit_lsp/capabilities.json") for n in names), "capabilities.json is missing"
+          assert any(n.endswith("idfkit_lsp/LICENSE") for n in names), "LICENSE is missing"
+          print(f"{wheel[0]}: {len(names)} files, capabilities.json and LICENSE present")
+          PY
+
+      - name: Publish
+        run: uv publish --trusted-publishing always dist/*
