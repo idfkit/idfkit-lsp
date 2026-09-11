@@ -31,8 +31,18 @@ packages = ["src/idfkit_lsp"]
 # wheel without it cannot start at all. `_default_path` looks beside the module first, which is
 # where this lands, and walks up to the repository root otherwise, which is where a checkout
 # reads the one live file from.
+#
+# TWO STEPS, because `uv build` makes the wheel FROM the source distribution, and the source
+# distribution holds only this directory. The sdist carries the repository-root file in at its own
+# root, and the wheel takes it from there. With only the wheel's `../capabilities.json`, the sdist
+# never held the file and no wheel could be built at all, which is part of why this package had
+# never been published. The licence travels the same way, so there is one LICENSE file, not two.
+[tool.hatch.build.targets.sdist.force-include]
+"../capabilities.json" = "capabilities.json"
+"../LICENSE" = "LICENSE"
+
 [tool.hatch.build.targets.wheel.force-include]
-"../capabilities.json" = "idfkit_lsp/capabilities.json"
+"capabilities.json" = "idfkit_lsp/capabilities.json"
 
 # -- Ruff ----------------------------------------------------------------
 
