@@ -48,8 +48,10 @@ jobs:
             exit 1
           fi
 
-      - name: Build
-        run: uv build --out-dir dist
+      # The wheel only. A source distribution of server/ cannot carry capabilities.json or the
+      # licence, both of which live above it; see the comment in server/pyproject.toml.
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
 
       # A wheel without capabilities.json cannot start: server.py reads it at import time.
       - name: The wheel carries what the server needs to start
@@ -62,7 +64,7 @@ jobs:
           assert len(wheel) == 1, f"expected one wheel, found {wheel}"
           names = zipfile.ZipFile(wheel[0]).namelist()
           assert any(n.endswith("idfkit_lsp/capabilities.json") for n in names), "capabilities.json is missing"
-          assert any(n.endswith("licenses/LICENSE") or n.endswith("/LICENSE") for n in names), "LICENSE is missing"
+          assert any(n.endswith("idfkit_lsp/LICENSE") for n in names), "LICENSE is missing"
           print(f"{wheel[0]}: {len(names)} files, capabilities.json and LICENSE present")
           PY
 
