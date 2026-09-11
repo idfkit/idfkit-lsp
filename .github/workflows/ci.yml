@@ -10,6 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # This repository's entry in the consumer register (governance/consumers.toml in
+  # idfkit-conformance, id `idfkit-lsp`) must still describe it: both Resolutions, the level of each
+  # declared where the register says, and the declarations of one release agreeing across
+  # server/pyproject.toml, model-server/package.json and levels.json. The tag is stated on `uses:`
+  # and again as the input, and the called workflow refuses the run unless the two match. It says
+  # nothing about whether a level is current; levels.json and the sweep say that.
+  consumer-register:
+    name: Consumer register
+    uses: idfkit/idfkit-conformance/.github/workflows/check-consumer.yml@governance-2026.18
+    with:
+      governance_level: governance-2026.18
+
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest

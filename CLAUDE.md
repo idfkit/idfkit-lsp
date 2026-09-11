@@ -139,12 +139,42 @@ ships, those entries flip to `present` and the protocol suite's skipped groups s
 source server across Python 3.10 to 3.13, the model server, and the protocol suite on Linux and
 Windows. Pre-commit runs ruff, pyright, and the three checks.
 
+## The consumer register
+
+This repository is `idfkit-lsp` in the consumer register, `governance/consumers.toml` in
+idfkit-conformance, read at the governance tag pinned in `.github/workflows/ci.yml`. It is the one
+consumer with two Resolutions, one per server, and the two say nothing about each other.
+
+- **Where the levels live**: idfkit in `server/pyproject.toml` and again in `levels.json`;
+  `@idfkit/core` and `@idfkit/language` in `model-server/package.json` and again in `levels.json`. The
+  register points at all of them and requires the declarations of one release to agree, which
+  `make check-levels` already enforces here. The model server comes through the scoped packages, a
+  supported entry point; nothing asks it to move to the shared name.
+- **Self-check**: the `consumer-register` job in `ci.yml` calls `check-consumer.yml` at that tag. It
+  fails when a level moves to a file the register does not point at, when a new dependency on either
+  library appears unregistered, or when the entry point changes. Bumping a level needs no register
+  change; moving where it is declared does, in idfkit-conformance.
+- **Rehearsal**: `.github/workflows/rehearse-candidate.yml` takes a library and a ref in that
+  library's repository, and runs that server's type check and tests against the candidate without
+  touching a manifest or lockfile. Its rename scan also reads this file and `README.md`, because prose
+  that teaches a call is read by every agent in this repository and by no type checker.
+- **Version**: the source server answers `idfkit-lsp/versions` with its own version and the levels it
+  read, from the installed distributions.
+
 ## Automated idfkit bumps
 
-When invoked by `.github/workflows/bump-idfkit.yml` on failure after an idfkit version bump:
+When invoked by `.github/workflows/bump-idfkit.yml` or `.github/workflows/bump-idfkit-js.yml` on
+failure after a version bump:
 
 - Make the smallest possible compatibility change. No unrelated refactors, no broad reformatting
-- A bump moves `level` in `levels.json` too. If `make check-levels` fails, the declaration is behind
+- A bump moves `level` in `levels.json` too, through `tools/declare_level.py`, which declares the
+  spelling the lockfile or manifest states. If `make check-levels` fails, the declaration is behind
   the pin: fix the declaration, not the check
 - Run `make check` from the repository root before finishing
 - Summarise: root cause, files changed, checks run, remaining risks
+
+Each bump also does three things that are not repairs: it lists every `idfkit:unavailable` statement
+marker resting on a capability the new level closed and keeps the pull request a draft until each is
+reviewed; it closes this repository's lag in the register for that library, through a paired pull
+request in idfkit-conformance; and, dispatched with `decline_reason`, it bumps nothing and records a
+deliberate lag instead. The two bumps are independent: neither language waits on the other.

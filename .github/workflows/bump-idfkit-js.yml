@@ -1,45 +1,32 @@
-name: Bump idfkit
+name: Bump idfkit-js
 
-# Adopt a newly published idfkit for the source server, as a pull request.
+# Adopt a newly published release of the second language for the model server, as a pull request.
 #
-# idfkit's notify-downstream.yml dispatches this on every release, in the wave order the consumer
-# register (governance/consumers.toml in idfkit-conformance) gives it. It pins the version in
-# server/pyproject.toml, relocks, moves the declared level in levels.json, runs the gate, lets Claude
-# attempt a minimal repair, and opens a pull request.
+# The model server resolves @idfkit/core and @idfkit/language, and idfkit-js has never had a
+# downstream half: until feature 004 of the unification, a second-language release reached this
+# repository only when somebody remembered it. idfkit-js's notify-downstream.yml now dispatches this,
+# in the wave order the consumer register (governance/consumers.toml in idfkit-conformance) gives it.
 #
-# THE DECLARED LEVEL IS READ BACK FROM server/uv.lock, NOT TAKEN FROM THE RELEASE. Every bump from
-# 1.0.0rc1 to 1.0.0rc4 failed at `make check-levels` and opened no pull request (idfkit/idfkit-lsp#17):
-# this workflow wrote the tag's spelling, `1.0.0-rc.4`, into levels.json while uv wrote `1.0.0rc4`
-# into the manifest and lockfile. tools/declare_level.py declares whatever the lockfile states, so the
-# declaration and the pin cannot disagree about a release they agree on.
+# ONE RELEASE, ONE LEVEL. Every governed package model-server/package.json depends on moves to the
+# same version in one change, through tools/adoption.py in idfkit-conformance, because the second
+# language publishes all of its packages at one version and a manifest holding two releases is half
+# adopted (FR-039). The optional peer on the shared name is left alone: it states what may be
+# installed beside the server, and moving it would publish a requirement. This repository comes
+# through the scoped packages, which are a supported entry point; nothing here migrates it (FR-044).
 #
-# Feature 004 of the unification added three steps, each because an adoption could otherwise report
-# complete while something it made false stood unexamined:
-#
-#   Statements. Every `idfkit:unavailable` marker here rests on a parity ledger entry. The markers
-#     resting on an entry that moved to complete between the old level's governance tag and the new
-#     one are listed in the pull request, which opens as a draft, and this run fails while any is
-#     listed (FR-025). Reviewing one is removing the statement, or setting its `own_reason`.
-#   The register. When the register holds a lag for this repository's python Resolution, the
-#     adoption closes it through a paired pull request in idfkit-conformance (FR-023). Otherwise a
-#     level moving needs no register change, because the register points at the files and holds no
-#     level.
-#   Declining. Run with `decline_reason` to decline a level; nothing is bumped and the register
-#     records a deliberate lag with that reason (FR-024).
-#
-# The model server's second-language half is adopted by bump-idfkit-js.yml, independently: the two
-# libraries release on their own cadences and neither adoption waits on the other (FR-021).
+# The first language is adopted by bump-idfkit.yml, independently: neither waits on the other (FR-021).
+# The statement, register and decline steps are the same as there, for the javascript Resolution.
 
 on:
   workflow_dispatch:
     inputs:
-      idfkit_version:
-        description: The published idfkit version to adopt, with or without a leading v.
+      idfkit_js_version:
+        description: The published idfkit-js release to adopt, with or without a leading v.
         required: true
         type: string
       decline_reason:
         description: >
-          Leave empty to adopt. To decline this level instead, state why as a policy, never a
+          Leave empty to adopt. To decline this release instead, state why as a policy, never a
           version. Nothing is bumped, and the register records a deliberate lag.
         required: false
         type: string
@@ -48,11 +35,10 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 env:
   CONSUMER: idfkit-lsp
-  LIBRARY: python
+  LIBRARY: javascript
   GOVERNANCE_LEVEL: governance-2026.18
 
 jobs:
@@ -64,13 +50,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CONFORMANCE_DISPATCH_TOKEN }}
           REASON: ${{ inputs.decline_reason }}
-          RAW_VERSION: ${{ inputs.idfkit_version }}
+          RAW_VERSION: ${{ inputs.idfkit_js_version }}
         run: |
           set -euo pipefail
           version="${RAW_VERSION#v}"
           command=(gh workflow run record-adoption.yml --repo idfkit/idfkit-conformance
                    -f consumer="$CONSUMER" -f library="$LIBRARY" -f outcome=decline -f reason="$REASON")
-          printf '## %s declines idfkit %s\n\nReason: %s\n' "$CONSUMER" "$version" "$REASON" >> "$GITHUB_STEP_SUMMARY"
+          printf '## %s declines idfkit-js %s\n\nReason: %s\n' "$CONSUMER" "$version" "$REASON" >> "$GITHUB_STEP_SUMMARY"
           if [ -n "${GH_TOKEN:-}" ]; then
             "${command[@]}"
             echo "Dispatched record-adoption.yml in idfkit-conformance; its pull request records the deliberate lag." >> "$GITHUB_STEP_SUMMARY"
@@ -90,7 +76,7 @@ jobs:
       - name: Normalize version
         id: ver
         env:
-          RAW_VERSION: ${{ inputs.idfkit_version }}
+          RAW_VERSION: ${{ inputs.idfkit_js_version }}
         run: |
           set -euo pipefail
           version="${RAW_VERSION#v}"
@@ -104,26 +90,8 @@ jobs:
       - name: Read the level this adoption moves from
         id: prev
         run: |
-          set -euo pipefail
-          previous=$(python3 - <<'PY'
-          import pathlib, re, tomllib
-          dependencies = tomllib.loads(pathlib.Path("server/pyproject.toml").read_text())["project"]["dependencies"]
-          pins = [d.split("==", 1)[1].strip() for d in dependencies if re.match(r"idfkit\s*==", d)]
-          if len(pins) != 1:
-              raise SystemExit(f"expected one exact idfkit pin in server/pyproject.toml, found {pins}")
-          print(pins[0])
-          PY
-          )
+          previous=$(python3 -c 'import json; print(json.load(open("model-server/package.json"))["dependencies"]["@idfkit/core"])')
           echo "level=$previous" >> "$GITHUB_OUTPUT"
-      - name: Bump idfkit
-        working-directory: server
-        run: |
-          uv add "idfkit==${{ steps.ver.outputs.version }}"
-          uv lock
-      # A bump that leaves the declaration behind is exactly the silence levels.json removes, so the
-      # declared level moves in the same step as the pin, in the spelling the lockfile states.
-      - name: Declare the level the lockfile now states
-        run: uv run --frozen --extra dev --project server python -m tools.declare_level idfkit server/uv.lock
       - name: Read the register and the ledger at the pinned governance tag
         uses: actions/checkout@v4
         with:
@@ -135,6 +103,19 @@ jobs:
       # Out of this repository's tree: the pull request below commits every change in it.
       - name: Move the governance checkout aside
         run: mv .governance "$RUNNER_TEMP/governance"
+      - name: Move every governed package to the release, in one change
+        run: >-
+          python3 "$RUNNER_TEMP/governance/tools/adoption.py"
+          --register "$RUNNER_TEMP/governance/governance/consumers.toml"
+          plan-js --manifest model-server/package.json --version "${{ steps.ver.outputs.version }}"
+      - name: Relock the model server
+        working-directory: model-server
+        run: npm install --no-audit --no-fund
+      # The declaration moves in the same change as the pin, in the spelling the manifest states.
+      - name: Declare the levels the manifest now states
+        run: |
+          uv run --extra dev --project server python -m tools.declare_level @idfkit/core model-server/package.json
+          uv run --extra dev --project server python -m tools.declare_level @idfkit/language model-server/package.json
       - name: List the statements this adoption surfaces
         id: statements
         env:
@@ -150,7 +131,7 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/statements.txt"
           if [ "$code" -ge 2 ]; then
-            echo "::error title=Statements unknown::The governance levels of idfkit $PREVIOUS and $VERSION could not be read, so the statements this adoption surfaces are unknown. That is not the same as none."
+            echo "::error title=Statements unknown::The governance levels of idfkit-js $PREVIOUS and $VERSION could not be read, so the statements this adoption surfaces are unknown. That is not the same as none."
             exit 2
           fi
           if [ "$code" -eq 1 ]; then echo "surfaced=true" >> "$GITHUB_OUTPUT"; else echo "surfaced=false" >> "$GITHUB_OUTPUT"; fi
@@ -206,8 +187,6 @@ jobs:
         run: |
           npm ci
           npm run build
-      # The gate runs ruff, pyright, pytest and the checks' jsonschema, all of which live in the
-      # dev extra, so the environment is resolved with it before anything is held to it.
       - name: Install the source server runtime
         working-directory: server
         run: uv sync --extra dev
@@ -224,14 +203,13 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            idfkit was bumped to ${{ steps.ver.outputs.version }} (in server/pyproject.toml), and the test suite failed.
+            @idfkit/core and @idfkit/language were bumped to ${{ steps.ver.outputs.version }} (in model-server/package.json), and the gate failed.
             Task:
             - Read the failure output at ${{ runner.temp }}/bump-test-output.txt.
-            - Diagnose the compatibility issue caused by the idfkit upgrade.
+            - Diagnose the compatibility issue caused by the upgrade.
             - Make the minimal code changes required.
             - If the failure is in tools/check_levels.py, the declared level in levels.json and the pin disagree; fix the declaration rather than the check.
-            - Do not refactor unrelated code.
-            - Preserve public APIs unless the idfkit upgrade requires a change.
+            - Do not refactor unrelated code, and do not move the model server to the shared install name.
             - Rerun: make check (from the repository root)
             - Leave a concise summary of root cause, changed files, and final test result.
       - name: Rerun the gate after Claude repair
@@ -250,8 +228,8 @@ jobs:
           HAS_TOKEN: ${{ secrets.CONFORMANCE_DISPATCH_TOKEN != '' }}
         run: |
           {
-            echo "Automated idfkit dependency bump for the source server."
-            echo "- Version: \`$VERSION\`, from \`$PREVIOUS\`"
+            echo "Automated second-language bump for the model server."
+            echo "- Release: \`$VERSION\`, from \`$PREVIOUS\`, for every governed package in model-server/package.json at once"
             echo "- Initial gate result: \`$TESTS\`"
             echo "- Gate command: \`make check\` (from the repository root)"
             echo
@@ -259,13 +237,13 @@ jobs:
             echo
             echo "### Statements of unavailability"
             if [ "$SURFACED" = true ]; then
-              echo "**This adoption is not complete.** The new level closes a capability that a statement in this repository says is unavailable. Remove each statement, or set its \`own_reason\` so it stops citing the library, then mark this pull request ready (FR-025):"
+              echo "**This adoption is not complete.** The new release closes a capability that a statement in this repository says is unavailable. Remove each statement, or set its \`own_reason\` so it stops citing the library, then mark this pull request ready (FR-025):"
               echo
               echo '```'
               cat "$RUNNER_TEMP/statements.txt"
               echo '```'
             else
-              echo "None of this repository's statements rests on a capability this level closed."
+              echo "None of this repository's statements rests on a capability this release closed."
             fi
             echo
             echo "### Consumer register"
@@ -290,9 +268,9 @@ jobs:
         id: pr
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: bot/bump-idfkit-${{ steps.ver.outputs.version }}
-          title: "Bump idfkit to ${{ steps.ver.outputs.version }}"
-          commit-message: "Bump idfkit to ${{ steps.ver.outputs.version }}"
+          branch: bot/bump-idfkit-js-${{ steps.ver.outputs.version }}
+          title: "Bump the model server to idfkit-js ${{ steps.ver.outputs.version }}"
+          commit-message: "Bump the model server to idfkit-js ${{ steps.ver.outputs.version }}"
           reviewers: samuelduchesne
           draft: ${{ steps.statements.outputs.surfaced == 'true' }}
           body-path: ${{ runner.temp }}/pr-body.md
@@ -311,5 +289,5 @@ jobs:
       - name: Refuse to call the adoption complete while a statement is unreviewed
         if: steps.statements.outputs.surfaced == 'true'
         run: |
-          echo "::error title=Statements unreviewed::This adoption surfaced statements of unavailability that the new level made false. The pull request is a draft until each is reviewed."
+          echo "::error title=Statements unreviewed::This adoption surfaced statements of unavailability that the new release made false. The pull request is a draft until each is reviewed."
           exit 1
