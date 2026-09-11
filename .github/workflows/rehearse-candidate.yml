@@ -1,0 +1,43 @@
+# Rehearse one of this repository's two servers against an unpublished library (feature 004, US2).
+#
+# This repository resolves both languages: the source server resolves idfkit, and the model server
+# resolves @idfkit/core and @idfkit/language. A rehearsal takes a candidate of one library and leaves
+# the other at its declared level, because the two release independently (FR-014), so the library is
+# chosen here and the candidate is a ref in that library's own repository.
+#
+# The reusable workflow builds the candidate, installs it without touching server/pyproject.toml,
+# server/uv.lock, model-server/package.json or model-server/package-lock.json, runs the type check
+# and then the tests at the declared level and again at the candidate, and says which failures the
+# candidate caused. Its rename scan also reads CLAUDE.md and README.md, which teach calls in prose
+# that no type checker ever opens.
+#
+# The commands are this repository's rehearsal entries in governance/consumers.toml in
+# idfkit-conformance, read at the pinned tag below. Dispatch only; a failure the candidate causes is
+# a finding against the library and never blocks a pull request here.
+
+name: rehearse-candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      library:
+        description: Which library to rehearse. The other stays at its declared level.
+        required: true
+        type: choice
+        options: [python, javascript]
+      candidate_ref:
+        description: A commit, branch or tag in idfkit/idfkit (python) or idfkit/idfkit-js (javascript). Required.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    uses: idfkit/idfkit-conformance/.github/workflows/rehearse.yml@governance-2026.18
+    with:
+      governance_level: governance-2026.18
+      consumer: idfkit-lsp
+      library: ${{ inputs.library }}
+      candidate_ref: ${{ inputs.candidate_ref }}
