@@ -224,11 +224,11 @@ export function currentOrDropped<T>(
  *
  * Feature 005 fixes five answers as pure functions of text and schema, and it is the caller that
  * resolves the schema, parses the model, loads the prose, and asks the syntax layer to classify.
- * All four come from `idfkit` itself rather than from the language service, which is why
- * `service.ts` does not reach them: it holds the one import of `idfkit/language`, and naming
+ * All four come from `@idfkit/idfkit` itself rather than from the language service, which is why
+ * `service.ts` does not reach them: it holds the one import of `@idfkit/idfkit/language`, and naming
  * `classify` there would give a reader two names for one function.
  *
- * NOTHING RESOLVES THEM TODAY. This repository installs neither `idfkit` nor its language service,
+ * NOTHING RESOLVES THEM TODAY. This repository installs neither `@idfkit/idfkit` nor its language service,
  * so every member below returns nothing and every handler that needs one says it cannot answer
  * instead of assembling something (Principle IV). The day the two are installed, this interface is
  * where that resolution lands, and no handler changes.

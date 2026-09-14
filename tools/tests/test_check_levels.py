@@ -171,7 +171,7 @@ class TestNpmManifests:
             tmp_path,
             _entry(),
             _entry(
-                name="idfkit (the second language's facade)",
+                name="@idfkit/idfkit (the second language's facade)",
                 declared_in=["model-server/package.json"],
                 resolution="optional peer, not installed by this repository",
                 level="0.0.0",
@@ -181,7 +181,9 @@ class TestNpmManifests:
                 tracked="feature 005 of the unification",
             ),
         )
-        _package_json(tmp_path, "model-server/package.json", peerDependencies={"idfkit": "0.0.0"})
+        _package_json(
+            tmp_path, "model-server/package.json", peerDependencies={"@idfkit/idfkit": "0.0.0"}
+        )
 
         report = check_levels(tmp_path)
         assert report.ok, report.failures

@@ -83,7 +83,7 @@ Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpret
 environment that is not the one we guessed.
 
 Answers about model text additionally need the language service component, which the model server
-reaches through the `idfkit` facade. When it is absent, the model server reports what to install,
+reaches through the `@idfkit/idfkit` facade. When it is absent, the model server reports what to install,
 in the component's own words, and the source server is unaffected.
 
 ## Using it from an editor that is not the targeted one

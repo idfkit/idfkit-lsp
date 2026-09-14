@@ -36,18 +36,18 @@ import type { TextDocumentContentChangeEvent } from 'vscode-languageserver-textd
 /**
  * The facade's guard, word for word in shape, with the component substituted.
  *
- * Copied from the pattern `idfkit/weather` already ships rather than invented,
+ * Copied from the pattern `@idfkit/idfkit/weather` already ships rather than invented,
  * because the point of the assertion below is that this text survives the trip
  * unedited. If it were this repository's wording the test would prove nothing.
  */
 const GUARD_MESSAGE =
-  `idfkit/language requires the optional component '${COMPONENT}', which is not installed.\n` +
+  `${SUBPATH} requires the optional component '${COMPONENT}', which is not installed.\n` +
   '\n' +
   `    npm install ${COMPONENT}\n` +
   '\n' +
-  'It is an optional peer dependency, so installing idfkit deliberately leaves it out: the ' +
+  `It is an optional peer dependency, so installing ${SHARED_NAME} deliberately leaves it out: the ` +
   'language service stays off disk for everyone who does not ask for it. Everything else in ' +
-  'idfkit works without it.';
+  `${SHARED_NAME} works without it.`;
 
 /** A stand-in carrying the six functions the contract fixes, and nothing real. */
 function stubService(): Record<string, unknown> {
@@ -104,7 +104,7 @@ describe('loadLanguageService with the component absent', () => {
   });
 
   it('speaks for itself only when nothing was installed to speak', async () => {
-    const result = await loadLanguageService(() => Promise.reject(resolverError('idfkit')));
+    const result = await loadLanguageService(() => Promise.reject(resolverError(SHARED_NAME)));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
@@ -363,7 +363,7 @@ describe('which specifier the service is reached through', () => {
 
   it("does not try the component after the facade's guard has already spoken", async () => {
     const asked: string[] = [];
-    const guard = new Error(`idfkit/language requires the optional component '${COMPONENT}'`);
+    const guard = new Error(`${SUBPATH} requires the optional component '${COMPONENT}'`);
     const result = await loadLanguageService((specifier) => {
       asked.push(specifier);
       return Promise.reject(guard);

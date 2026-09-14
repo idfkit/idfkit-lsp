@@ -12,8 +12,8 @@
  *
  * Two reasons, and neither is a layer of its own. The handlers import a type from one place, so
  * where a type comes from is answered once rather than in six files. And the two packages behind
- * that one place are not interchangeable: the five answers come from `idfkit/language`, while the
- * schema, the syntax layer, the parsed model and a field's facts come from `idfkit` itself. Which
+ * that one place are not interchangeable: the five answers come from `@idfkit/idfkit/language`, while the
+ * schema, the syntax layer, the parsed model and a field's facts come from `@idfkit/idfkit` itself. Which
  * is which is a fact worth writing down once, and it is the only fact this file states.
  *
  * WHAT THIS COSTS
@@ -24,12 +24,12 @@
  *
  * WHY THE TYPES COME FROM THE COMPONENT'S OWN NAME
  *
- * At runtime this server prefers `idfkit/language`, the shared name's subpath, and falls back to
+ * At runtime this server prefers `@idfkit/idfkit/language`, the shared name's subpath, and falls back to
  * `@idfkit/language`; `service.ts` holds that order and the reason for it. The types are taken
- * from the component directly because the shared name is not installable at all today, so there
+ * from the component directly because the shared name has not been published yet, so there
  * would be nothing to read them from. This is not a second opinion about the surface: the shared
  * name's `language.d.ts` is a plain re-export of exactly these types, so the two agree by
- * construction. The day the shared name is registered, these specifiers change and nothing else
+ * construction. The day the shared name is published, these specifiers change and nothing else
  * does.
  */
 

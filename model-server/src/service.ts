@@ -2,8 +2,8 @@
  * The one place this repository reaches the language service.
  *
  * Everything about EnergyPlus model text comes from `@idfkit/language`, and it
- * is reached at `idfkit/language`, the shared name's subpath, rather than by
- * the component's own package name. That is the pattern `idfkit/weather`
+ * is reached at `@idfkit/idfkit/language`, the shared name's subpath, rather than by
+ * the component's own package name. That is the pattern `@idfkit/idfkit/weather`
  * already ships: the shared-name package declares the component as an optional
  * peer, exposes it at a subpath, and guards that subpath with a dynamic import
  * that turns a missing package into a message naming what to install.
@@ -24,13 +24,13 @@
 import type { LanguageService } from "./language-service.js";
 
 /** The shared name's subpath. The only specifier this repository resolves. */
-export const SUBPATH = "idfkit/language";
+export const SUBPATH = "@idfkit/idfkit/language";
 
 /** The component behind it, and the name a user can actually install today. */
 export const COMPONENT = "@idfkit/language";
 
 /** The shared install name, which is what the subpath above belongs to. */
-export const SHARED_NAME = "idfkit";
+export const SHARED_NAME = "@idfkit/idfkit";
 
 /**
  * What this module says when nothing was installed to speak for itself.
@@ -41,9 +41,9 @@ export const SHARED_NAME = "idfkit";
  *
  * It names the component rather than the shared name as what to install, which
  * is the one place this repository does not send a user to the shared name. It
- * cannot: `idfkit` is not on the npm registry, so the instruction that reads
- * best would be the instruction that fails. When the name is registered this
- * message goes back to asking for it.
+ * cannot yet: `@idfkit/idfkit` has not been published to the npm registry, so
+ * the instruction that reads best would be the instruction that fails. When it
+ * is published this message goes back to asking for it.
  */
 export const NOT_INSTALLED =
   "The model server answers about EnergyPlus model text through the idfkit language service, " +
@@ -52,10 +52,10 @@ export const NOT_INSTALLED =
   `    npm install ${COMPONENT}\n` +
   "\n" +
   `The shared install name, '${SHARED_NAME}', is the one this server prefers and is not on the ` +
-  "npm registry yet: the registry's similarity filter rejected the name and an appeal is " +
-  `pending. So install the component under its own name for now. Until it is there this server ` +
-  "answers nothing about model text and says so rather than guessing. The Python server, which " +
-  "serves Python source, is unaffected.";
+  "npm registry yet: the registry refused the unscoped name 'idfkit', and the facade has not yet " +
+  "been published under its scoped name. So install the component under its own name for now. " +
+  "Until it is there this server answers nothing about model text and says so rather than " +
+  "guessing. The Python server, which serves Python source, is unaffected.";
 
 /** Node's codes for a specifier that resolved to nothing. */
 const RESOLUTION_CODES: ReadonlySet<string> = new Set([
@@ -69,8 +69,8 @@ const RESOLUTION_CODES: ReadonlySet<string> = new Set([
  *
  * A bundler or a test runner resolves imports itself and reports a failure in
  * its own words with no `code` at all. Measured under vitest 2.1.8, an absent
- * `idfkit/language` arrives as a plain `Error` reading `Could not resolve
- * "idfkit/language" imported by ...`. Matching on phrasing is weaker than
+ * subpath arrives as a plain `Error` reading `Could not resolve
+ * "<subpath>" imported by ...`. Matching on phrasing is weaker than
  * matching on a code, so it is used only in support of the specifier check
  * below, never on its own.
  */
@@ -120,16 +120,18 @@ const importSubpath: SubpathImport = (specifier) =>
  * `contracts/language-service-expected.md` fixes, and it is what gives a user one name to install
  * and the facade one place to say what is missing.
  *
- * THE SECOND ENTRY EXISTS BECAUSE THE FIRST CANNOT BE INSTALLED. `idfkit` is not on the npm
- * registry: the registry's similarity filter rejected the name and an appeal is pending, so the
- * publish workflow's shared-name job is skipped on every release by design. The scoped packages
+ * THE SECOND ENTRY EXISTS BECAUSE THE FIRST CANNOT BE INSTALLED YET. `@idfkit/idfkit` is not on
+ * the npm registry. The registry refused the unscoped name `idfkit` to its similarity filter, and
+ * support confirmed on 2026-09-14 that no exception is possible, so the facade moved to the scoped
+ * name; it has not been published under it yet, and the publish workflow's shared-name job does
+ * not run on release. The scoped packages
  * ship on time and the shared name does not, which would leave this server unable to answer for a
  * reason that has nothing to do with either repository's code.
  *
  * So the component is accepted under its own name when the shared name is absent. This is a
  * fallback and not a second supported way in: nothing else in this repository names the component,
  * the guard's message still asks for the shared name where the shared name is what is missing, and
- * the day the appeal succeeds this array loses its second entry and nothing else changes.
+ * the day `@idfkit/idfkit` is published this array loses its second entry and nothing else changes.
  */
 export const SPECIFIER_ORDER: readonly string[] = [SUBPATH, COMPONENT];
 
@@ -156,8 +158,8 @@ function codeOf(error: unknown): string | undefined {
 const SPECIFIERS: readonly string[] = [
   SUBPATH,
   COMPONENT,
-  "'idfkit'",
-  '"idfkit"',
+  `'${SHARED_NAME}'`,
+  `"${SHARED_NAME}"`,
 ];
 
 /**

@@ -67,16 +67,16 @@
       "reason": "Version 10 raises the editor floor above the ^1.86.0 this extension targets. Moving the floor again to gain nothing a user would notice is a cost with no return, so the client stays on 9 until the floor moves for a reason of its own."
     },
     {
-      "name": "idfkit (the second language's facade)",
+      "name": "@idfkit/idfkit (the second language's facade)",
       "declared_in": [
         "model-server/package.json"
       ],
-      "resolution": "optional peer, not installed by this repository, and not installable from the npm registry today. Preferred at run time where a user has it, and resolved ahead of the scoped packages by both service.ts and inputs.ts.",
+      "resolution": "optional peer, not installed by this repository, and not yet published to the npm registry. Preferred at run time where a user has it, and resolved ahead of the scoped packages by both service.ts and inputs.ts.",
       "level": "0.0.0",
       "current": "0.2.0",
       "standing": "behind_temporary",
-      "reason": "The shared install name is not on the npm registry. The registry's similarity filter rejected it and an appeal is pending, so the publish workflow's shared-name job is skipped on every release by design while the scoped packages ship on schedule. The pin stays at the level this repository can actually resolve, which is none, and the components are reached under their own names until the appeal succeeds.",
-      "tracked": "The npm name appeal for 'idfkit'. When it succeeds, this entry takes the published level, and the fallback specifiers in model-server/src/service.ts and model-server/src/inputs.ts are deleted."
+      "reason": "The shared install name is not on the npm registry. The registry refused the unscoped name idfkit to its similarity filter, and npm support confirmed on 2026-09-14 that no exception is possible, so the facade moved to @idfkit/idfkit. It has not been published under that name yet, while the scoped packages ship on schedule. The pin stays at the level this repository can actually resolve, which is none, and the components are reached under their own names until the facade is published.",
+      "tracked": "The first publication of @idfkit/idfkit (idfkit-js, unification task T101). When it lands, this entry takes the published level, and the fallback specifiers in model-server/src/service.ts and model-server/src/inputs.ts are deleted."
     },
     {
       "name": "@idfkit/core",

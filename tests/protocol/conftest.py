@@ -51,7 +51,7 @@ CANDIDATE_FIRST = "CANDIDATE_FIRST"
 CANDIDATE_SECOND = "CANDIDATE_SECOND"
 
 _COMPONENT = "@idfkit/language"
-_SUBPATH = "idfkit/language"
+_SUBPATH = "@idfkit/idfkit/language"
 _PROBE_TIMEOUT = 60.0
 
 # Resolution is asked of the runtime rather than answered by looking for a directory: an export

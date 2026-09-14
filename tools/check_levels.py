@@ -67,9 +67,10 @@ class ResolvedLibrary:
     def lookup_name(self) -> str:
         """The name the manifests actually install under.
 
-        ``levels.json`` carries two entries that install as ``idfkit``: the first language's
-        library and the second language's facade. They are told apart by a parenthetical after the
-        name, so the text before the first space is what a manifest is searched for.
+        An entry may carry a parenthetical after the name, as the second language's facade
+        (``@idfkit/idfkit``) does, so the text before the first space is what a manifest is
+        searched for. The parenthetical was added when the facade and the first language's library
+        both installed as ``idfkit``; npm refused that name, and it now only describes the entry.
         """
         return self.name.split(" ", 1)[0]
 
