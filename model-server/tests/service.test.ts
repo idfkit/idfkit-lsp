@@ -34,9 +34,9 @@ import type { CompletionResult } from '../src/language-service.js';
 import type { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument';
 
 /**
- * The facade's guard, word for word in shape, with the component substituted.
+ * The facade's guard, word for word as `@idfkit/idfkit/language` throws it.
  *
- * Copied from the pattern `@idfkit/idfkit/weather` already ships rather than invented,
+ * Copied from idfkit-js (idfkit/idfkit-js#62) rather than invented,
  * because the point of the assertion below is that this text survives the trip
  * unedited. If it were this repository's wording the test would prove nothing.
  */
@@ -46,8 +46,8 @@ const GUARD_MESSAGE =
   `    npm install ${COMPONENT}\n` +
   '\n' +
   `It is an optional peer dependency, so installing ${SHARED_NAME} deliberately leaves it out: the ` +
-  'language service stays off disk for everyone who does not ask for it. Everything else in ' +
-  `${SHARED_NAME} works without it.`;
+  'language service stays off disk for everyone who reads and writes models without an ' +
+  'editor in front of them. Everything else in idfkit works without it.';
 
 /** A stand-in carrying the six functions the contract fixes, and nothing real. */
 function stubService(): Record<string, unknown> {
