@@ -8,7 +8,7 @@
  *
  * WHY THIS IS NOT IN `service.ts`
  *
- * `service.ts` holds the one import of `idfkit/language`. Everything here comes from `idfkit`
+ * `service.ts` holds the one import of `@idfkit/idfkit/language`. Everything here comes from `@idfkit/idfkit`
  * itself: `scanIdf` and `classify` from the syntax layer, `parseIdf` from the reader, and the
  * schema bundle from the library's Node edge. Naming `classify` inside the language service's
  * module would give a reader two names for one function, so the two imports stay apart.
@@ -44,16 +44,17 @@ import type { CallerInputs } from "./main.js";
  * The specifiers this module resolves, each with the fallback it accepts.
  *
  * The shared name is preferred and is the one a user should install. It is not on the npm registry
- * today, because the registry's similarity filter rejected the name and an appeal is pending, so
- * the component's own name is accepted after it. `service.ts` carries the same pair and the same
- * reason for the language service; both lose their fallback on the day the appeal succeeds.
+ * today: the registry refused the unscoped name `idfkit`, and the facade has not yet been published
+ * as `@idfkit/idfkit`, so the component's own name is accepted after it. `service.ts` carries the
+ * same pair and the same reason for the language service; both lose their fallback on the day
+ * `@idfkit/idfkit` is published.
  *
  * The shared name's `index.js` and `node.js` are plain re-exports of exactly these two, so the
  * fallback resolves the same code and not a substitute for it.
  */
-export const CORE_SUBPATH = "idfkit";
+export const CORE_SUBPATH = "@idfkit/idfkit";
 export const CORE_FALLBACK = "@idfkit/core";
-export const NODE_SUBPATH = "idfkit/node";
+export const NODE_SUBPATH = "@idfkit/idfkit/node";
 export const NODE_FALLBACK = "@idfkit/core/node";
 
 /**
@@ -69,8 +70,8 @@ export const CORE_NOT_INSTALLED =
   `    npm install ${CORE_FALLBACK}\n` +
   "\n" +
   `The shared install name, '${CORE_SUBPATH}', is the one this server prefers and is not on the ` +
-  "npm registry yet: the registry's similarity filter rejected the name and an appeal is " +
-  "pending. So install the package under its own name for now. Until it is there this server " +
+  "npm registry yet: the registry refused the unscoped name 'idfkit', and the facade has not yet " +
+  "been published under its scoped name. So install the package under its own name for now. Until it is there this server " +
   "answers nothing about model text and says so rather than guessing. The Python server, which " +
   "serves Python source, is unaffected.";
 

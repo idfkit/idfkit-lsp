@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The model server looks for the idfkit facade as `@idfkit/idfkit`, and its subpaths as
+  `@idfkit/idfkit/language` and `@idfkit/idfkit/node`, instead of `idfkit`. npm refused the unscoped
+  name. Until the facade is published, the model server still falls back to `@idfkit/core` and
+  `@idfkit/language` under their own names.
+
 ## [0.2.0] - 2026-09-11
 
 The first release published to PyPI. `pip install idfkit-lsp` installs the source server, the

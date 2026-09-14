@@ -101,7 +101,7 @@ describe('when the library is not installed', () => {
   it('reports rather than throws, and names what to install', async () => {
     const result = await loadInputs(
       () => {},
-      () => Promise.reject(new Error("Cannot find package 'idfkit'")),
+      () => Promise.reject(new Error("Cannot find package '@idfkit/idfkit'")),
     );
 
     expect(result.ok).toBe(false);

@@ -93,7 +93,7 @@ Pipeline: **document change → AST analysis → handler response**.
 
 1. `main.ts` — protocol wiring over stdio, advertising from `capabilities.ts`
 2. `capabilities.ts` — the TypeScript loader for `capabilities.json`, same rules as the Python one
-3. `service.ts` — the single import of `@idfkit/language`, through the `idfkit/language` subpath,
+3. `service.ts` — the single import of `@idfkit/language`, through the `@idfkit/idfkit/language` subpath,
    with the facade's guard message passed through unchanged when the component is absent
 4. `documents.ts` — one service handle per open document, fed edits under incremental sync
 5. `positions.ts` — **the only arithmetic over model text in this repository**, and the single
