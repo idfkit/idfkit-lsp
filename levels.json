@@ -84,8 +84,8 @@
         "model-server/package.json"
       ],
       "resolution": "exact pin, resolved from the npm registry",
-      "level": "0.2.0",
-      "current": "0.2.0",
+      "level": "0.3.0",
+      "current": "0.3.0",
       "standing": "current"
     },
     {
@@ -94,8 +94,8 @@
         "model-server/package.json"
       ],
       "resolution": "exact pin, resolved from the npm registry",
-      "level": "0.2.0",
-      "current": "0.2.0",
+      "level": "0.3.0",
+      "current": "0.3.0",
       "standing": "current"
     }
   ]
