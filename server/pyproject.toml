@@ -11,7 +11,7 @@ license = "MIT"
 dependencies = [
     "pygls==2.1.1",
     "lsprotocol==2025.0.0",
-    "idfkit==1.0.0rc1",
+    "idfkit==1.0.0rc6",
 ]
 
 [project.optional-dependencies]
