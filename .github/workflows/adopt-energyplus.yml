@@ -1,11 +1,16 @@
 name: adopt-energyplus
 
-# Adopt one EnergyPlus release in this project, as a draft pull request on `energyplus/X.Y.Z`.
+# Adopt one EnergyPlus release in this project. The reusable workflow proposes a change as a pull
+# request on `energyplus/X.Y.Z`. No step of this project declares a command and the project
+# declares no statement, so a run here changes no file and opens no pull request: it reports that
+# the project is waiting, or that nothing is to be done.
 #
 # This file holds no logic. The steps, their order, the command each one runs and the gate are
 # declared for the project `idfkit-lsp` in `governance/energyplus.toml` of idfkit-conformance, and
-# the reusable workflow called below executes exactly those commands and no others. It never
-# merges, publishes or releases: the caller grants `contents: write` and `pull-requests: write` only.
+# the reusable workflow called below executes exactly those commands and no others. The reusable
+# workflow at the pinned tag contains no step that merges, publishes or releases. The caller grants
+# `contents: write` and `pull-requests: write`, which the reusable workflow requires, and no
+# permission that publishing or deploying needs.
 #
 # THE TAG IS STATED TWICE, on `uses:` and as `governance_level`, because a called workflow cannot
 # see its own ref. The reusable workflow refuses the run unless the two are the same string, so
