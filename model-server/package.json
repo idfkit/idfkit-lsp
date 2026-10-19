@@ -1,7 +1,7 @@
 {
   "name": "@idfkit/lsp-model-server",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Language server for EnergyPlus model text. Translates the idfkit language service into the Language Server Protocol.",
   "license": "MIT",
   "type": "module",

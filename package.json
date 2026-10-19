@@ -2,7 +2,7 @@
     "name": "idfkit-lsp",
     "displayName": "idfkit Language Support",
     "description": "Editor support for two things: Python source that uses the idfkit library, and EnergyPlus model text. Python files get completion, hover and signature help. Model files get classification, findings, completion, explanation and declaration lookup, served by a second server. What is served and what is not is declared in capabilities.json and nowhere else.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "publisher": "idfkit",
     "license": "MIT",
     "repository": {

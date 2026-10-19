@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+This release moves both servers to the current library levels. Neither server gains or loses a
+capability.
+
 ### Changed
 
+- The source server now requires idfkit 1.1.1, pinned exactly (0.2.0 required 1.0.0rc1). Give it an
+  environment of its own if your project runs a different idfkit.
+- The model server now resolves `@idfkit/core` and `@idfkit/language` at 0.4.0 (0.2.0 resolved
+  0.2.0).
 - The model server looks for the idfkit facade as `@idfkit/idfkit`, and its subpaths as
   `@idfkit/idfkit/language` and `@idfkit/idfkit/node`, instead of `idfkit`. npm refused the unscoped
   name. Until the facade is published, the model server still falls back to `@idfkit/core` and
@@ -64,6 +73,7 @@ The first release, published on GitHub with a VS Code extension.
   subscripts, method calls and loops.
 - An "Open Documentation" command in the VS Code extension.
 
-[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/idfkit/idfkit-lsp/releases/tag/v0.1.0
