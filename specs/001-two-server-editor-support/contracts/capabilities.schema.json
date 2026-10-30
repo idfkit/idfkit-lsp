@@ -50,6 +50,11 @@
           "tracked": {
             "type": "string",
             "minLength": 1
+          },
+          "editor_specific": {
+            "type": "boolean",
+            "default": false,
+            "description": "True marks glue that cannot move into a server, so a reader knows it is unavailable outside the targeted editor."
           }
         }
       }

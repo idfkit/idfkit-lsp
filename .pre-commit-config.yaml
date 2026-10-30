@@ -38,7 +38,7 @@ repos:
         entry: make check-declaration
         language: system
         pass_filenames: false
-        files: ^(capabilities\.json|package\.json|README\.md|server/src/|model-server/src/)
+        files: ^(capabilities\.json|package\.json|README\.md|server/src/|model-server/src/|model-server/package(-lock)?\.json)
       - id: check-levels
         name: levels.json agrees with every file that declares a level
         entry: make check-levels

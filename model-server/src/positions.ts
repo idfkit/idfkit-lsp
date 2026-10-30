@@ -1,9 +1,9 @@
 /**
- * The single declared exception to Constitution Principle I.
+ * The single declared exception to Constitution Principle I for arithmetic over model text.
  *
  * Principle I forbids this repository from computing over model text: no schema table, no grammar
  * pattern, no arithmetic that derives meaning from an offset. This module is the one place the rule
- * is lifted, and it is lifted for a reason that cannot be designed away. The Language Server
+ * is lifted for arithmetic, for a reason that cannot be designed away. The Language Server
  * Protocol asks for a line and a character measured in a negotiated encoding. The idfkit language
  * service states its regions as absolute offsets into the text, and feature 005 of the unification
  * forbids the service from naming a protocol's types, precisely so that a second protocol would not

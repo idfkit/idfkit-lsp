@@ -1,42 +1,38 @@
-# Development files
-.git/**
-.github/**
-.vscode/**
-.specify/**
-CLAUDE.md
-Makefile
-specs/**
+# An allowlist: everything is excluded, and a file ships only when a line below names it. A new
+# file in the repository therefore stays out of the package until someone decides otherwise.
+#
+# Every pattern is anchored at the repository root, so a worktree under .claude/worktrees stays out
+# whole: its own package.json, node_modules and bundles match none of the lines below.
+#
+# vsce applies a negation after every ignore pattern, whatever the order of the lines, so the
+# sections below can grow independently.
+**
 
-# Client source (compiled output is in client/dist/)
-client/src/**
-client/node_modules/**
-client/tsconfig.json
+# The extension manifest, and the listing pages vsce builds from these files.
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
 
-# Model server source (bundled output is in model-server/dist/)
-model-server/src/**
-model-server/tests/**
-model-server/node_modules/**
-model-server/tsconfig.json
-model-server/package-lock.json
-
-# Server development artifacts
-server/.venv/**
-server/tests/**
-server/uv.lock
-server/.python-version
-
-# The protocol suite and the repository checks are not shipped
-tests/**
-tools/**
-
-# Build artifacts
-node_modules/**
-**/__pycache__/**
-**/.pytest_cache/**
-**/.ruff_cache/**
-*.vsix
-
-# Kept deliberately: model-server/dist/, capabilities.json, levels.json
-!model-server/dist/**
+# The declaration both the client and the model server read at run time, from this location.
 !capabilities.json
-!levels.json
+
+# The comment marker for `.idf` files. VS Code reads it only from here, and capabilities.json records why.
+!language-configuration.json
+
+# The client bundle. It includes vscode-languageclient, so nothing beside it is needed.
+!client/dist/extension.js
+
+# The model server bundle, and the manifest beside it. The manifest gives the bundle its
+# `"type": "module"` and is what the server reads to answer idfkit-lsp/versions.
+!model-server/dist/main.js
+!model-server/package.json
+
+# The bundle leaves @idfkit/* external and @idfkit/schemas is read from disk, so those packages must
+# sit in model-server/node_modules at run time. Every other package there is bundled or dev only.
+!model-server/node_modules/@idfkit/**
+
+# Deliberately absent:
+# - server/: the source server is installed with pip and started as `python -m idfkit_lsp`.
+# - levels.json: read by the repository's checks and bump workflows, and by nothing at run time.
+# - dist/*.map: no runtime here loads them, and they weigh more than the bundles they describe.

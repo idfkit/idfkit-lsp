@@ -22,7 +22,8 @@ knowledge. That sentence decides most questions here.
 - **Protocol suite** (`tests/protocol/`): one suite, both servers, protocol in and protocol out,
   no editor anywhere.
 - **Checks** (`tools/`): the three gates that hold the constitution up before review, plus
-  `check_package.py`, which checks the packed npm tarball and its command (CI and release only).
+  `check_package.py`, which checks the packed npm tarball and its command (CI and release only),
+  and `check_vsix.py`, which checks the unpacked VS Code extension and its model server (CI only).
 
 ## The two declared records
 
@@ -44,7 +45,7 @@ Three states and no fourth: `present`, `absent_permanent` (needs `reason` and `i
 All run from the repository root. Package managers are **uv** (Python) and **npm** (TypeScript).
 
 ```bash
-make install           # Install both runtimes
+make install           # Install both runtimes, the client and the packaging tools
 make check             # The one command a change is held to
 make fix               # Auto-fix lint and format
 
@@ -61,6 +62,7 @@ make test-model        # Model server unit tests
 make test-protocol     # Both servers over the protocol, no editor (ARGS=... passes through)
 make bench-protocol    # An answer at a cursor, measured at the protocol boundary
 make build             # Bundle the client and the model server
+make package           # Package the VS Code extension (VSIX=<path> names the output)
 ```
 
 Single tests:
@@ -100,7 +102,8 @@ Pipeline: **document change → AST analysis → handler response**.
    component is absent. `inputs.ts` reaches the rest of the library through `@idfkit/idfkit` the same way
 4. `documents.ts` — one service handle per open document, fed edits under incremental sync
 5. `positions.ts` — **the only arithmetic over model text in this repository**, and the single
-   declared exception to Principle I. `tools/check_knowledge.py` exempts it by name
+   declared exception to Principle I for that arithmetic. `tools/check_knowledge.py` exempts it by
+   name
 6. `handlers/` — semantic tokens, diagnostics, completion, hover, definition. Each is a pure
    translation of what the service returned
 
@@ -123,6 +126,10 @@ it rather than a reviewer:
 - No arithmetic deriving an element from a text offset outside `model-server/src/positions.ts`
 - No answer assembled locally when a library declines to give one. An absence is stated, and an
   absence that is permanent or temporary is recorded in `capabilities.json` with its kind
+
+`language-configuration.json` is a recorded exception: it holds the line comment marker and nothing
+else, because no server can supply it (`retained_knowledge` in `capabilities.json`). A `wordPattern`
+or a TextMate grammar is a grammar pattern and is not permitted.
 
 A suppression is available and costs a sentence: `# check-knowledge: allow <reason>` or the `//`
 form. The reason is required, which is what keeps suppressions countable.
@@ -147,6 +154,18 @@ declaration. The `packed` job in `ci.yml` installs the tarball into an empty dir
 `MODEL_SERVER_PACKAGE`. The `publish-npm` job in `release.yml` publishes from the same tag as PyPI,
 by trusted publishing, prereleases under `next`.
 
+## Packaging the extension
+
+The model server bundle leaves `@idfkit/*` external, and `@idfkit/schemas` is read from disk, so a
+VSIX must carry those packages beside the bundle. `vscode:prepublish` runs `npm ci` in `client/` and
+in `model-server/`, which holds the delivered levels to the lockfiles, and replaces whatever
+`node_modules` those directories held. The root `npm ci` remains a prerequisite, because the
+prepublish step itself runs the root `esbuild`. `.vscodeignore` keeps
+`model-server/node_modules/@idfkit/**` and nothing else from that directory. Every other direct
+runtime dependency of the model server is compiled into `dist/main.js`, but a third-party runtime
+dependency of an `@idfkit` package is not, because those packages are external. A new package of
+either kind that is not bundled needs its own line there.
+
 ## Publishing the extension
 
 Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with
@@ -161,10 +180,13 @@ first upload that `--oidc` does not accept.
 
 ## CI
 
-`.github/workflows/ci.yml`: lint, typecheck (both languages), the three declaration checks, the
-source server across Python 3.10 to 3.13, the model server, the protocol suite on Linux and
-Windows, and the protocol suite again against the packed npm tarball. Pre-commit runs ruff,
-pyright, and the three checks.
+`.github/workflows/ci.yml`: lint, typecheck (both languages, and the client in a job of its own,
+outside `make check`), the three declaration checks, the source server across Python 3.10 to 3.13,
+the model server, the protocol suite on Linux and Windows on Node 20.9.0, and the protocol suite again against the packed npm tarball and against the packaged
+VSIX. The `vsix` job runs `make install` and `make package`, unzips the VSIX outside the checkout,
+and runs `tools/check_vsix.py`, which fails if the packaged model server does not advertise what
+`capabilities.json` marks present or warns on start. Pre-commit runs ruff, pyright, and the three
+checks.
 
 ## The consumer register
 

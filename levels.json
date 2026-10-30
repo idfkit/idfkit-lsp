@@ -64,7 +64,7 @@
       "level": "9.0.1",
       "current": "10.1.1",
       "standing": "behind_deliberate",
-      "reason": "Version 10 raises the editor floor above the ^1.86.0 this extension targets. Moving the floor again to gain nothing a user would notice is a cost with no return, so the client stays on 9 until the floor moves for a reason of its own."
+      "reason": "Version 10 raises the editor floor above the ^1.90.0 this extension targets. Moving the floor again to gain nothing a user would notice is a cost with no return, so the client stays on 9 until the floor moves for a reason of its own."
     },
     {
       "name": "@idfkit/idfkit",

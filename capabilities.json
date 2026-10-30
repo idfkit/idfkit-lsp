@@ -12,6 +12,13 @@
       "where": "model-server/src/positions.ts",
       "reason": "The protocol demands positions in a unit the language service does not speak, and feature 005 requires conversion to be possible without the service knowing a protocol exists, which places the conversion on this side by construction. It converts between text encodings, not between meanings: it needs no schema and no grammar.",
       "tracked": "Permanent by construction. Confined to one module, which tools/check_knowledge.py exempts by name and nothing else."
+    },
+    {
+      "subject": "the line comment marker of model text, which VS Code inserts and removes when a user toggles a comment",
+      "where": "language-configuration.json",
+      "reason": "Editor-specific limitation under Principle V. The protocol has no request for toggling a comment, VS Code reads the marker only from a language configuration, and the language service does not export it, so no server can supply it. The file holds this one value and no pattern: it answers no request and this repository never reads model text with it. An editor other than VS Code configures its own comment marker.",
+      "tracked": "Stays while the protocol has no such request and the language service does not export the marker. An export would allow this file to be generated from the library at package time, which would remove the local copy. Until then, tests/protocol/test_language_configuration.py fails if the file gains any other member, and holds the marker against what the language service classifies as a comment, so the copy cannot drift silently.",
+      "editor_specific": true
     }
   ],
   "servers": [
@@ -77,7 +84,7 @@
     },
     {
       "id": "model",
-      "runtime": "Node 18 or newer, ESM, launched on the editor's own runtime",
+      "runtime": "Node 20 or newer, ESM, launched on the editor's own runtime",
       "documents": [
         {
           "language_id": "idf",
