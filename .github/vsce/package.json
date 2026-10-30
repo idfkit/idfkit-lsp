@@ -1,0 +1,8 @@
+{
+  "name": "idfkit-lsp-release-vsce",
+  "description": "Locks the dependency tree of vsce for release.yml. Installed with npm ci --ignore-scripts.",
+  "private": true,
+  "dependencies": {
+    "@vscode/vsce": "4.1.0"
+  }
+}
