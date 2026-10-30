@@ -15,6 +15,7 @@ import {
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
+    State,
     TransportKind,
 } from "vscode-languageclient/node";
 
@@ -26,6 +27,32 @@ interface ServerHandle {
 }
 
 const handles: ServerHandle[] = [];
+
+/**
+ * How long to wait after a server does not stop. The language client force-stops that server 2000 ms
+ * after the failed stop, and this is that time plus a margin for the process to be gone.
+ */
+const FORCED_STOP_WAIT_MS = 2500;
+
+/**
+ * Stop a server, and wait for the language client's forced stop when the server does not respond.
+ *
+ * A server force-stopped after the client has started again closes a connection the client no longer
+ * uses, but the client handles that close as the loss of its current connection: it abandons the
+ * server it just started, still running, and starts another. An extension host that exits first
+ * never runs the forced stop at all. Both are avoided by waiting here.
+ */
+async function stopServer(client: LanguageClient): Promise<void> {
+    const wasRunning = client.state === State.Running;
+    try {
+        await client.stop();
+    } catch {
+        // The client may also be in a starting or start-failed state, with no forced stop to wait for.
+        if (wasRunning) {
+            await new Promise((resolve) => setTimeout(resolve, FORCED_STOP_WAIT_MS));
+        }
+    }
+}
 
 interface DocumentKind {
     readonly language_id: string;
@@ -288,11 +315,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // One server failing to come back must not leave the other stopped, so each restart
             // is reported where that server's output already is and the loop carries on.
             for (const handle of handles) {
-                try {
-                    await handle.client.stop();
-                } catch {
-                    // The client may be in a starting or start-failed state.
-                }
+                await stopServer(handle.client);
                 try {
                     await handle.client.start();
                 } catch (err: unknown) {
@@ -347,7 +370,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): Thenable<void> | undefined {
-    const stopping = handles.map((handle) => handle.client.stop().catch(() => undefined));
+    const stopping = handles.map((handle) => stopServer(handle.client));
     handles.length = 0;
     return Promise.all(stopping).then(() => undefined);
 }

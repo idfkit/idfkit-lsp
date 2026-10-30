@@ -166,6 +166,11 @@ runtime dependency of the model server is compiled into `dist/main.js`, but a th
 dependency of an `@idfkit` package is not, because those packages are external. A new package of
 either kind that is not bundled needs its own line there.
 
+Bundling also moves what `vscode-languageclient` finds through `__dirname`. It runs
+`terminateProcess.sh` from there to force-stop a server on macOS and Linux, so `npm run compile`
+copies the script to `client/dist/`. `vsce` and VS Code both keep its executable bit, and
+`tools/check_vsix.py` fails if the VSIX loses the file or the bit.
+
 ## Publishing the extension
 
 Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with

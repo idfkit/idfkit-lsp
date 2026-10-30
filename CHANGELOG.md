@@ -48,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A language server that does not stop is now force-stopped by the packaged VS Code extension on
+  macOS and Linux. `vscode-languageclient` runs `terminateProcess.sh` from the directory of the
+  client bundle, where the VSIX carried no such file, so the server stayed running. The build now
+  copies the script there, `.vscodeignore` admits it, and `tools/check_vsix.py` fails when it is
+  missing or not executable. The restart command and deactivation now wait for the forced stop, so
+  a restart no longer abandons the server it just started, and closing the editor no longer exits
+  before the forced stop runs.
 - The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
   contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
   advertised no model text capability. The prepublish step now installs the locked dependencies of
