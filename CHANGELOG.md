@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
+  contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
+  advertised no model text capability. The prepublish step now installs the locked dependencies of
+  the client and the model server, and `.vscodeignore` keeps `@idfkit/idfkit`, `@idfkit/core`,
+  `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
+  `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without
