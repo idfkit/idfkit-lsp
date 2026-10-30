@@ -173,25 +173,42 @@ function lastLine(text: string): string | undefined {
 }
 
 /**
+ * The working directory of the probe and of the source server, passed explicitly to both.
+ *
+ * This is the selection the language client makes by default: the first workspace folder, when it
+ * is a local directory that exists. A missing directory is excluded because a spawn in it fails
+ * with ENOENT, which cannot be told apart from a missing interpreter.
+ */
+function serverWorkingDirectory(): string | undefined {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (folder?.uri.scheme !== "file") {
+        return undefined;
+    }
+    const directory = folder.uri.fsPath;
+    return fs.existsSync(directory) ? directory : undefined;
+}
+
+/**
  * Ask an interpreter whether it can run the source server, without starting the server.
  *
  * Only the exit status decides. A release older than the flag ignores it and reads protocol from
  * standard input until end of file, so standard input is closed here: that release exits cleanly
  * with nothing printed, and is correctly reported as able to run.
  */
-function probeSourceServer(pythonPath: string, signal: AbortSignal): Promise<SourceServerProbe> {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-        (folder) => folder.uri.scheme === "file"
-    );
+function probeSourceServer(
+    pythonPath: string,
+    cwd: string | undefined,
+    signal: AbortSignal
+): Promise<SourceServerProbe> {
     return new Promise((resolve) => {
         try {
             const child = execFile(
                 pythonPath,
                 [...SOURCE_SERVER_ARGS, "--version"],
                 {
-                    // The directory the language client starts the server in, because `python -m`
-                    // searches it first and the answer has to hold for that launch.
-                    cwd: workspaceFolder?.uri.fsPath,
+                    // `python -m` searches the working directory first, so the answer holds for
+                    // the server launch only if both use the same directory.
+                    cwd,
                     signal,
                     timeout: PROBE_TIMEOUT_MS,
                     windowsHide: true,
@@ -231,9 +248,13 @@ class SourceClient extends LanguageClient {
         return {
             error: (error, message, count) => bounded.error(error, message, count),
             closed: async () => {
-                if (this.state !== State.Starting) {
+                if (this.state === State.Running) {
                     return bounded.closed();
                 }
+                // A failed start also arrives here, reported as `State.Stopped`, when the library
+                // ends a server that answered `initialize` with an error. Its owner has already
+                // discarded this client, so a restart would leave a server nothing can stop.
+                //
                 // The library forgets the start promise as soon as this answers. Answering after
                 // the pending start has failed is what lets that failure reach the caller of
                 // `start()`, rather than becoming an unhandled rejection and a false success.
@@ -252,7 +273,7 @@ class SourceClient extends LanguageClient {
             await super.stop(timeout);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            this.outputChannel.appendLine(`The source server had nothing to stop: ${msg}`);
+            this.outputChannel.appendLine(`The source server did not stop cleanly: ${msg}`);
         }
     }
 }
@@ -263,6 +284,7 @@ class SourceClient extends LanguageClient {
  */
 class SourceServer {
     private client: LanguageClient | undefined;
+    private launchedWith: string | undefined;
     private unavailable: string | undefined;
     private pendingNotice: vscode.Disposable | undefined;
     private settled: Promise<void> = Promise.resolve();
@@ -280,10 +302,18 @@ class SourceServer {
         this.settled = this.launch(false);
     }
 
-    /** Replace the server. Someone asked for this, so a failure here is always reported to them. */
+    /**
+     * Replace the server. A probe failure on this path is always shown as a notification.
+     *
+     * The client is disposed before `settled` is awaited, because a server that never answers
+     * `initialize` leaves `settled` pending. The library refuses to stop a client that is starting
+     * but still terminates its process two seconds later, which fails that start. `dispose` is used
+     * rather than `stop` because a replaced client must not restart itself.
+     */
     public restart(): Promise<void> {
+        void this.client?.dispose();
         this.settled = this.settled.then(async () => {
-            await this.client?.stop();
+            await this.client?.dispose();
             this.client = undefined;
             await this.launch(true);
         });
@@ -299,17 +329,25 @@ class SourceServer {
     public async stop(): Promise<void> {
         this.pendingNotice?.dispose();
         this.stopping.abort();
+        // Disposed before and after the wait, for the reason given on `restart`.
+        await this.client?.dispose();
         await this.settled;
-        await this.client?.stop();
+        await this.client?.dispose();
     }
 
-    /** State why there is no server. Unprompted this happens once; when asked, it always does. */
-    public report(pythonPath: string = resolvePythonPath(this.context.extensionPath)): void {
-        const reason = this.unavailable ?? "it is not running";
+    /**
+     * Show why no server is running, naming the interpreter of the last launch rather than the
+     * current setting, which may have changed since. Unprompted failures use `noticeOnce`.
+     */
+    public report(): void {
+        const cause =
+            this.unavailable === undefined
+                ? `the source server started with "${this.launchedWith}" is not running`
+                : `"${this.launchedWith}" cannot run the source server (${this.unavailable})`;
         void vscode.window
             .showInformationMessage(
-                `idfkit: Python source support is off, because "${pythonPath}" cannot run the ` +
-                    `source server (${reason}). Model files are not affected.`,
+                `idfkit: Python source support is off, because ${cause}. ` +
+                    "Model files are not affected.",
                 "Open Settings",
                 "Open Output"
             )
@@ -331,10 +369,12 @@ class SourceServer {
         this.unavailable = undefined;
 
         const pythonPath = resolvePythonPath(this.context.extensionPath);
+        const cwd = serverWorkingDirectory();
+        this.launchedWith = pythonPath;
         this.outputChannel.appendLine(`Runtime: ${pythonPath}`);
         this.outputChannel.appendLine(`Command: ${pythonPath} ${SOURCE_SERVER_ARGS.join(" ")}`);
 
-        const probe = await probeSourceServer(pythonPath, this.stopping.signal);
+        const probe = await probeSourceServer(pythonPath, cwd, this.stopping.signal);
         if (this.stopping.signal.aborted) {
             return;
         }
@@ -342,7 +382,7 @@ class SourceServer {
             this.unavailable = probe.reason;
             this.outputChannel.appendLine(`The source server was not started: ${probe.reason}`);
             if (asked) {
-                this.report(pythonPath);
+                this.report();
             } else {
                 this.noticeOnce(pythonPath);
             }
@@ -353,6 +393,7 @@ class SourceServer {
         const serverOptions: ServerOptions = {
             command: pythonPath,
             args: [...SOURCE_SERVER_ARGS],
+            options: { cwd },
         };
         const clientOptions: LanguageClientOptions = {
             documentSelector: this.selector,
@@ -378,11 +419,12 @@ class SourceServer {
     }
 
     /**
-     * Say so once per interpreter, and not before a document this server serves is open.
+     * Show the notification once per interpreter, after a document this server serves is open.
      *
-     * Nothing here decides whether a project uses the library, because that would be analysis of
-     * source in the client. So this is information rather than an error, it is remembered across
-     * sessions, and someone who only opens model files never sees it.
+     * The client does not determine whether a project uses the library, because that would be
+     * analysis of source in the client. The message is therefore informational rather than an
+     * error, its display is persisted across sessions, and a session with only model files open
+     * does not show it.
      */
     private noticeOnce(pythonPath: string): void {
         const key = `sourceServerNotice:${pythonPath}`;
@@ -393,7 +435,7 @@ class SourceServer {
             vscode.languages.match(this.selector, document) > 0;
         const notify = (): void => {
             void this.context.globalState.update(key, true);
-            this.report(pythonPath);
+            this.report();
         };
         if (vscode.workspace.textDocuments.some(served)) {
             notify();

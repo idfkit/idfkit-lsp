@@ -1,11 +1,10 @@
-"""What a launcher learns by asking an interpreter whether it can run the source server.
+"""The launch probe contract: the exit status of ``python -m idfkit_lsp --version``.
 
-The editor client asks before it starts the server, and any other editor's launch configuration can
-ask the same question, so the question is held to here rather than in the client: the exit status of
-``python -m idfkit_lsp --version`` is the whole contract.
+The editor client runs this command before it starts the source server, and another editor's launch
+configuration can run the same command, so the contract is tested here rather than in the client.
 
-Each case runs the command a launcher runs, against an interpreter in the state a user's machine can
-be in: the server fully installed, nothing installed, or the server present without its libraries.
+Each case runs the command against one of three interpreter states: the server fully installed,
+nothing installed, or the server present without its libraries.
 """
 
 from __future__ import annotations
@@ -34,22 +33,32 @@ _PROBE_TIMEOUT = 60.0
 
 
 def _probe(
-    interpreter: str, cwd: Path, *, extra_path: Path | None = None
+    interpreter: str, cwd: Path, *, python_path: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    """Run the probe with standard input left open, which is the case that could wait forever."""
+    """Run the probe with standard input open and silent, the case that could wait forever.
+
+    ``subprocess.run`` closes a ``PIPE`` before it waits, which a server would read as end of file
+    and exit. The read end of a pipe held open here is passed instead, so a probe that fell through
+    to the server reaches the timeout.
+    """
     environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
-    if extra_path is not None:
-        environment["PYTHONPATH"] = str(extra_path)
-    return subprocess.run(
-        [interpreter, *_PROBE_ARGS],
-        cwd=str(cwd),
-        env=environment,
-        stdin=subprocess.PIPE,
-        capture_output=True,
-        text=True,
-        timeout=_PROBE_TIMEOUT,
-        check=False,
-    )
+    if python_path is not None:
+        environment["PYTHONPATH"] = python_path
+    read_end, write_end = os.pipe()
+    try:
+        return subprocess.run(
+            [interpreter, *_PROBE_ARGS],
+            cwd=str(cwd),
+            env=environment,
+            stdin=read_end,
+            capture_output=True,
+            text=True,
+            timeout=_PROBE_TIMEOUT,
+            check=False,
+        )
+    finally:
+        os.close(read_end)
+        os.close(write_end)
 
 
 @pytest.fixture(scope="module")
@@ -67,7 +76,11 @@ class TestAnInterpreterThatCanRunTheServer:
     def test_exits_zero_and_names_the_installed_level(
         self, source_server_description: ServerDescription, tmp_path: Path
     ) -> None:
-        completed = _probe(source_server_description.command, tmp_path)
+        # The description's overlay carries a rehearsal's candidate library, when there is one.
+        overlay = source_server_description.env or {}
+        completed = _probe(
+            source_server_description.command, tmp_path, python_path=overlay.get("PYTHONPATH")
+        )
 
         assert completed.returncode == 0, completed.stderr
         assert completed.stdout.strip() == f"idfkit-lsp {metadata.version('idfkit-lsp')}"
@@ -87,7 +100,7 @@ class TestAnInterpreterThatCannotRunTheServer:
     ) -> None:
         """An import probe that stopped at the package itself would call this interpreter able."""
         completed = _probe(
-            clean_interpreter, tmp_path, extra_path=REPOSITORY_ROOT / "server" / "src"
+            clean_interpreter, tmp_path, python_path=str(REPOSITORY_ROOT / "server" / "src")
         )
 
         assert completed.returncode != 0
