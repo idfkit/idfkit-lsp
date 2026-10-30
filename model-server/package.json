@@ -20,10 +20,10 @@
     "dist/capabilities.json"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
+    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node20 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepack": "npm run build && node -e \"const fs = require('node:fs'); fs.copyFileSync('../capabilities.json', 'dist/capabilities.json'); fs.copyFileSync('../LICENSE', 'LICENSE')\"",

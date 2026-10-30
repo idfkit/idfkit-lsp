@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The minimum VS Code version is now 1.90 (previously 1.86). VS Code 1.90 is the first release on
+  Electron 29, whose Node 20 runtime is the one the model server runs on by default. VS Code 1.86
+  to 1.89 run Node 18, which the `engines.node` of the idfkit packages the model server depends
+  on excludes.
+- The minimum Node version of the npm package `@idfkit/language-server` is now 20 (previously 18),
+  which matches `engines.node` in `@idfkit/core`, `@idfkit/idfkit` and `@idfkit/language` 0.4.0.
+  `capabilities.json` and the readme state the same floor, and the bundle targets `node20`.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without
