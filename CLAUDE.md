@@ -151,8 +151,9 @@ component is missing.
 `LICENSE` into the package, and `postpack` removes both, so the checkout always reads the root
 declaration. The `packed` job in `ci.yml` installs the tarball into an empty directory, runs
 `tools/check_package.py`, and runs the protocol suite against that install through
-`MODEL_SERVER_PACKAGE`. The `publish-npm` job in `release.yml` publishes from the same tag as PyPI,
-by trusted publishing, prereleases under `next`.
+`MODEL_SERVER_PACKAGE`. In `release.yml`, `package-npm` repeats those checks on the tarball and hands
+it to `publish-npm`, which publishes from the same tag as PyPI, by trusted publishing, prereleases
+under `next`.
 
 ## Packaging the extension
 
@@ -168,15 +169,40 @@ either kind that is not bundled needs its own line there.
 
 ## Publishing the extension
 
-Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with
-`npx @vscode/vsce` at an exact version, runs the protocol suite against the unpacked VSIX through
+Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with the vsce
+locked in `.github/vsce/`, runs the protocol suite against the unpacked VSIX through
 `MODEL_SERVER_PACKAGE`, uploads the file as an artifact, and attaches it to the GitHub release.
 `publish-vsix` downloads that artifact and publishes it to the Marketplace with `--packagePath` and
-`--oidc`, so no token is stored. Only `publish-vsix` holds `id-token: write`, and it has no checkout
-and no `npm ci`; do not add a step there that installs or runs project code. A prerelease is skipped,
-because the Marketplace accepts only major.minor.patch. The publisher and its Trusted Publishing
-policy are a one-time prerequisite, stated at the top of the workflow, along with the fallback for a
-first upload that `--oidc` does not accept.
+`--oidc`, so no token is stored. A prerelease is skipped, because the Marketplace accepts only
+major.minor.patch. The publisher and its Trusted Publishing policy are a one-time prerequisite,
+stated at the top of the workflow, along with the fallback for a first upload that `--oidc` does not
+accept.
+
+## The release jobs
+
+Each publication in `release.yml` is a pair: `package-wheel` and `publish`, `package-npm` and
+`publish-npm`, `package-vsix` and `publish-vsix`. The package job holds the tag refusal, the build
+and every check, and has no `id-token`. The publish job holds `id-token: write`, receives the checked
+file as an artifact, and uploads it without rebuilding. Do not add a step to a publish job that
+installs or runs project code.
+
+- `publish` and `publish-npm` have no checkout and no project. `publish` states its uv level on the
+  setup step, and `publish-npm` takes the dist-tag from the release tag.
+- `publish-vsix` needs vsce, which performs the OIDC exchange itself, so it checks out only
+  `.github/vsce/package.json` and `.github/vsce/package-lock.json` and runs
+  `npm ci --ignore-scripts` there. `@vscode/vsce-sign`'s install script therefore does not run, and
+  its binary is absent. vsce uses that binary only to sign or verify, and this workflow does neither,
+  so adding a signing option means revisiting the install.
+- To change the vsce level, run `npm install --package-lock-only --ignore-scripts
+  @vscode/vsce@<version>` in `.github/vsce/`. The root `package.json` declares its own level of vsce,
+  for `make package`.
+- Every action in `release.yml` and `release-rehearsal.yml` is pinned to a full commit with its
+  version in a comment. Other workflows are not.
+
+`tools/tests/test_release_workflow.py` holds this shape against the parsed workflow in `make check`.
+`release-rehearsal.yml` runs on a pull request that changes these files and exercises the handoff and
+each publish tool with no `id-token`, so it cannot publish. A registry accepting the upload, and the
+behaviour of a rerun, remain unverified until a real release.
 
 ## CI
 

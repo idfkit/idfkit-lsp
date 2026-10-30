@@ -5,15 +5,55 @@
 # (idfkit/idfkit-plugin#17), and the plugin's language-server path could not be pinned to a level
 # (feature 004 of the unification, FR-015 and T114).
 #
-# TRUSTED PUBLISHING, NO TOKEN. PyPI exchanges the OIDC token GitHub mints for this job for
+# TRUSTED PUBLISHING, NO TOKEN. PyPI exchanges the OIDC token GitHub mints for the `publish` job for
 # publish rights, as idfkit-mcp's release does, so there is no long-lived secret to store or
 # rotate. PREREQUISITE, ONCE: register a pending trusted publisher on pypi.org for the project
 # `idfkit-lsp` with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`. Until that
 # exists the publish step fails with an authentication error and nothing is uploaded.
 #
-# THE RELEASE TAG AND THE DECLARED VERSION ARE ONE FACT. The job refuses a release whose tag
+# THE RELEASE TAG AND THE DECLARED VERSION ARE ONE FACT. `package-wheel` refuses a release whose tag
 # (`v0.2.0`) does not match `server/pyproject.toml`, rather than rewriting the version from the tag,
 # so the repository never lies about what it published.
+#
+# EVERY PUBLICATION IS TWO JOBS, SO THAT `id-token: write` IS HELD ONLY WHERE NO PROJECT CODE RUNS.
+# The pairs are `package-wheel` and `publish`, `package-npm` and `publish-npm`, and `package-vsix`
+# and `publish-vsix`. A package job checks out, installs, builds and checks, and cannot request an
+# OIDC token. It hands the file it checked to its publish job as an artifact, and that job uploads
+# the file without rebuilding it. The publishers on PyPI and npm and the policy on the Marketplace
+# name the workflow file and no job, so moving the permission between jobs changes no registration.
+# This limits what a compromised dependency can reach, not what it can alter: a package job that
+# runs hostile code can still alter the file it hands over, and only the checks in that job stand
+# between that file and the registry. An environment with required reviewers would add a human
+# approval before each publish job, and none is configured.
+#
+# THE PUBLISH JOBS FOR PYPI AND NPM HAVE NO CHECKOUT AND NO PROJECT. `uv publish` takes its file
+# arguments and `npm publish` reads the manifest from the tarball, and neither reads a project. A
+# tarball also runs no lifecycle script, because npm runs those only when publishing a directory.
+# With no project to name a level, uv is pinned on the setup step, and that step's cache is off so
+# that this job restores nothing another job could have written.
+#
+# THE TREE OF VSCE IS LOCKED, BY `.github/vsce/package-lock.json`, AND ITS INSTALL SCRIPTS DO NOT RUN.
+# vsce performs the OIDC exchange itself, so its dependency tree has to run in `publish-vsix`. That
+# job therefore checks out the two files in `.github/vsce/` and nothing else, and installs them with
+# `npm ci --ignore-scripts`. The trade-off is this. The one install script in the tree belongs to
+# `@vscode/vsce-sign`, and it copies the signing binary into place, so that binary is absent here.
+# vsce calls it only to sign or to verify a signature, and this workflow does neither: `vsce package`
+# and `vsce publish --packagePath` with no signature option never reach it. If a signing option is
+# added, that step fails on the missing binary and the job fails, and the install must then decide
+# again. To change the level, run `npm install --package-lock-only --ignore-scripts
+# @vscode/vsce@<version>` in `.github/vsce/`. `package-vsix` installs from the same lockfile, so one
+# file states the level this workflow uses.
+#
+# EVERY ACTION IS PINNED TO A FULL COMMIT, with its version in a comment beside it, because a tag can
+# be moved. The commits are those the major tags named when they were pinned, so no major version
+# changed. A package job is pinned as well, because the file it hands over is the file published.
+#
+# THE HANDOFF, A RERUN AND THE PUBLISH STEPS ARE UNVERIFIED UNTIL THE FIRST REAL RELEASE.
+# `release-rehearsal.yml` exercises the handoff and each publish tool with no ability to publish,
+# and it cannot show that a registry accepts the upload. GitHub's documentation does not state
+# whether rerunning a package job can upload an artifact under a name an earlier attempt used, or
+# which attempt's artifact a rerun publish job receives. npm refuses a version it already holds, so
+# rerunning `publish-npm` after a successful upload fails and changes nothing.
 #
 # THE MODEL SERVER GOES TO NPM FROM THE SAME RELEASE, as `@idfkit/language-server` (#33), so an
 # editor other than VS Code can install it without cloning this repository. Same rules: trusted
@@ -32,9 +72,8 @@
 # to the GitHub release first, for an editor that does not read the Marketplace, so a failed
 # Marketplace upload still leaves it installable.
 #
-# THE TWO JOBS ARE SEPARATE SO THAT `id-token: write` IS HELD ONLY WHERE NO PROJECT DEPENDENCY IS
-# INSTALLED OR RUN. `package-vsix` runs npm's lifecycle scripts and the protocol suite and cannot
-# request an OIDC token. `publish-vsix` can, and has no checkout and no `npm ci`.
+# `package-vsix` runs npm's lifecycle scripts and the protocol suite and cannot request an OIDC
+# token. `publish-vsix` can, and it installs only the locked tree of vsce described above.
 #
 # Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for
 # `publish-vsix` for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE:
@@ -68,18 +107,19 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  package-wheel:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     defaults:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       - name: Refuse a release whose tag is not the declared version
         env:
@@ -111,24 +151,46 @@ jobs:
           print(f"{wheel[0]}: {len(names)} files, capabilities.json and LICENSE present")
           PY
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wheel
+          path: server/dist/*.whl
+          if-no-files-found: error
+
+  # No checkout and no project: this job holds `id-token: write`, so it runs only the upload.
+  publish:
+    needs: package-wheel
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wheel
+          path: dist
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.13.1"
+          enable-cache: false
+
       - name: Publish
         run: uv publish --trusted-publishing always dist/*
 
-  publish-npm:
+  package-npm:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
-      # Trusted publishing needs npm 11.5.1 or newer, which Node 24 ships.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Refuse a release whose tag is not the declared version
         env:
@@ -169,12 +231,39 @@ jobs:
           --tarball "$(ls "$RUNNER_TEMP"/pack/*.tgz)"
           --installed "$RUNNER_TEMP/consumer"
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+
+  # No checkout and no project: this job holds `id-token: write`, so it runs only the upload.
+  publish-npm:
+    needs: package-npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      # Trusted publishing needs npm 11.5.1 or newer, which Node 24 ships.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+
       # A prerelease goes to `next`, never to `latest`: npm hands `latest` to every
-      # `npm install -g @idfkit/language-server` and `npx` that names no version.
+      # `npm install -g @idfkit/language-server` and `npx` that names no version. The version comes
+      # from the tag because there is no manifest here, and `package-npm` refused a tag that differs
+      # from the declared version.
       - name: Publish
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          declared=$(node -p 'require("./model-server/package.json").version')
-          case "$declared" in
+          case "${TAG#v}" in
             *-*) tag=next ;;
             *) tag=latest ;;
           esac
@@ -185,19 +274,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # to attach the VSIX to the release
-    env:
-      VSCE: "@vscode/vsce@4.1.0"
     steps:
       # No credential left in the checkout: this job holds a write token and runs npm's lifecycle
       # scripts, and only the step that attaches the file is given the token.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       # vsce 4.1.0 declares Node 22 as its floor.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
 
@@ -219,11 +306,14 @@ jobs:
       # released commit, the Package step fails here, and nothing is attached or published.
       - run: npm ci
 
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: .github/vsce
+
       # `--out` names a directory, which it does not create, so the file keeps vsce's own name.
       - name: Package
         run: |
           mkdir -p "$RUNNER_TEMP/vsix"
-          npx --yes "$VSCE" package --out "$RUNNER_TEMP/vsix/"
+          .github/vsce/node_modules/.bin/vsce package --out "$RUNNER_TEMP/vsix/"
 
       - name: The VSIX declares this release and carries what the extension needs to start
         run: |
@@ -267,7 +357,7 @@ jobs:
         env:
           MODEL_SERVER_PACKAGE: ${{ runner.temp }}/unpacked/extension/model-server
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vsix
           path: ${{ runner.temp }}/vsix/*.vsix
@@ -280,8 +370,9 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" "$RUNNER_TEMP"/vsix/*.vsix --clobber --repo "$GITHUB_REPOSITORY"
 
-  # No checkout and no `npm ci`: this job holds `id-token: write`, so nothing from the repository or
-  # its dependency tree runs here. `npx` still fetches vsce's own unlocked transitive dependencies.
+  # No project checkout and no project install: this job holds `id-token: write`, so the only code
+  # it runs beyond the pinned actions is vsce and the tree locked in `.github/vsce/`. The checkout
+  # fetches those two files, at the released commit, and leaves no credential behind.
   publish-vsix:
     needs: package-vsix
     if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
@@ -289,22 +380,33 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      VSCE: "@vscode/vsce@4.1.0"
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/vsce/package.json
+            /.github/vsce/package-lock.json
+
       # vsce 4.1.0 declares Node 22 as its floor.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: vsix
           path: ${{ runner.temp }}/vsix
+
+      # The lockfile holds every package to its integrity hash, and no package's script runs. See
+      # the header for what `--ignore-scripts` costs.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: .github/vsce
 
       # With `--oidc`, vsce reads no stored token and does not prompt: a failed exchange stops here.
       # The file that was checked is the file published: `--packagePath` does not rebuild.
       # `--skip-duplicate` so that a rerun after the Marketplace accepted the upload does not fail
       # on the version it already holds.
       - name: Publish
-        run: npx --yes "$VSCE" publish --oidc --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"
+        run: .github/vsce/node_modules/.bin/vsce publish --oidc --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"

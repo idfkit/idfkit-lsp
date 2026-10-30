@@ -55,6 +55,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
   `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
 
+### Security
+
+- The release jobs that can request a registry credential no longer build the project. The PyPI and
+  npm publications are each split into a package job with no `id-token`, which holds the tag refusal,
+  the build and the checks, and a publish job with no checkout, which uploads the checked file from
+  an artifact without rebuilding it. The Marketplace publication already had this shape.
+- The release workflow installs vsce from a dedicated lockfile in `.github/vsce/` with
+  `npm ci --ignore-scripts`, instead of `npx`, which resolved about 135 packages with no lockfile.
+  `publish-vsix` checks out only the two files in that directory. The install script of
+  `@vscode/vsce-sign` no longer runs, and its binary is absent; vsce uses it only to sign or verify,
+  which the workflow does not do.
+- Every action in `release.yml` is pinned to a full commit, with its version in a comment.
+- `release-rehearsal.yml` exercises the artifact handoff and each publish tool on a pull request that
+  changes the release jobs, with no `id-token`, and `tools/tests/test_release_workflow.py` holds the
+  separation against the parsed workflow in `make check`. Whether a registry accepts the upload, and
+  how a rerun behaves, remain unverified until a real release.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without

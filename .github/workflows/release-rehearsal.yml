@@ -1,0 +1,173 @@
+# Exercise the artifact handoff in release.yml and each publish tool, with no ability to publish.
+#
+# A real release is the only full test of release.yml, and a defect found there is found while a
+# version is half published. This workflow runs on a pull request that changes the release jobs, and
+# holds the parts that can be tested without a registry to the same pinned actions and the same
+# shape of job: an artifact built in one job and received in another with no project beside it.
+#
+# NOTHING HERE CAN PUBLISH. No job holds `id-token: write`, so GitHub issues no OIDC token, and no
+# secret is read. `uv publish` and `npm publish` run with `--dry-run`. `vsce publish` has no dry run,
+# so it runs with the OIDC variables empty and must stop at the credential step, which is reached
+# after vsce has read the VSIX and before it contacts the Marketplace.
+#
+# WHAT THIS DOES NOT SHOW: that a registry accepts the upload, that a trusted publisher or a policy
+# is registered correctly, or how a rerun behaves. It also repeats no check from the package jobs in
+# release.yml, because `ci.yml` runs those on every change. `tools/tests/test_release_workflow.py`
+# holds the two files to the same pinned actions and the same level of uv.
+
+name: release-rehearsal
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/release-rehearsal.yml
+      - .github/vsce/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Build the wheel
+        run: uv build --wheel --out-dir "$RUNNER_TEMP/dist"
+        working-directory: server
+
+      - run: npm ci
+        working-directory: model-server
+
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+        working-directory: model-server
+
+      - run: npm ci
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: .github/vsce
+
+      - name: Package
+        run: |
+          mkdir -p "$RUNNER_TEMP/vsix"
+          .github/vsce/node_modules/.bin/vsce package --out "$RUNNER_TEMP/vsix/"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wheel
+          path: ${{ runner.temp }}/dist/*.whl
+          if-no-files-found: error
+          retention-days: 1
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix/*.vsix
+          if-no-files-found: error
+          retention-days: 1
+
+  rehearse-wheel:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wheel
+          path: dist
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.13.1"
+          enable-cache: false
+
+      - name: Dry run from a job with no project
+        run: |
+          test ! -e pyproject.toml
+          uv publish --dry-run --trusted-publishing never dist/*
+
+  rehearse-npm:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+
+      # `--force` because the version on a branch may already be on the registry, which would
+      # otherwise end a dry run early.
+      - name: Dry run from a job with no project
+        run: |
+          test ! -e package.json
+          npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public --tag latest --dry-run --force
+
+  rehearse-vsix:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/vsce/package.json
+            /.github/vsce/package-lock.json
+
+      - name: The checkout holds the two lockfile inputs and nothing else
+        run: |
+          listed=$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | tr '\n' ' ')
+          echo "$listed"
+          test "$listed" = "./.github/vsce/package-lock.json ./.github/vsce/package.json "
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: .github/vsce
+
+      # Failure is the expected result. Any other outcome fails this step, including a success.
+      - name: vsce reads the VSIX and stops at the credential step
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_URL: ""
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ""
+        run: |
+          status=0
+          output=$(.github/vsce/node_modules/.bin/vsce publish --oidc --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)" 2>&1) || status=$?
+          echo "$output"
+          test "$status" -ne 0
+          echo "$output" | grep -q "did not provide an OIDC token request URL"
