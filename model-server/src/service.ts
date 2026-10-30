@@ -26,7 +26,7 @@ import type { LanguageService } from "./language-service.js";
 /** The shared name's subpath. The only specifier this repository resolves. */
 export const SUBPATH = "@idfkit/idfkit/language";
 
-/** The component behind it, and the name a user can actually install today. */
+/** The component behind it, an optional peer of the shared name. */
 export const COMPONENT = "@idfkit/language";
 
 /** The shared install name, which is what the subpath above belongs to. */
@@ -37,24 +37,19 @@ export const SHARED_NAME = "@idfkit/idfkit";
  *
  * Distinct from the guard's message on purpose. The guard's message assumes the
  * shared name is present and only the optional component is missing; this one
- * covers the case where neither name resolves at all.
- *
- * It names the component rather than the shared name as what to install, which
- * is the one place this repository does not send a user to the shared name. It
- * cannot yet: `@idfkit/idfkit` has not been published to the npm registry, so
- * the instruction that reads best would be the instruction that fails. When it
- * is published this message goes back to asking for it.
+ * covers the case where the shared name does not resolve at all, which an
+ * install of this package from the registry never produces: both names are
+ * among its dependencies. It is reached from a checkout nobody ran `npm ci` in,
+ * or from a copy of the bundle carried away from its `node_modules`.
  */
 export const NOT_INSTALLED =
   "The model server answers about EnergyPlus model text through the idfkit language service, " +
-  `and neither '${SUBPATH}' nor '${COMPONENT}' could be resolved here.\n` +
+  `and '${SUBPATH}' could not be resolved here.\n` +
   "\n" +
-  `    npm install ${COMPONENT}\n` +
+  `    npm install ${SHARED_NAME} ${COMPONENT}\n` +
   "\n" +
-  `The shared install name, '${SHARED_NAME}', is the one this server prefers and is not on the ` +
-  "npm registry yet: the registry refused the unscoped name 'idfkit', and the facade has not yet " +
-  "been published under its scoped name. So install the component under its own name for now. " +
-  "Until it is there this server answers nothing about model text and says so rather than " +
+  `The language service is an optional component of '${SHARED_NAME}', so both are named. ` +
+  "Until they are there this server answers nothing about model text and says so rather than " +
   "guessing. The Python server, which serves Python source, is unaffected.";
 
 /** Node's codes for a specifier that resolved to nothing. */
@@ -115,25 +110,15 @@ const importSubpath: SubpathImport = (specifier) =>
 /**
  * The specifiers this module will resolve, in the order it prefers them.
  *
- * THE SHARED NAME COMES FIRST AND IS STILL THE INTENDED ONE. Reaching the component through the
- * shared name's subpath rather than through its own package name is what
- * `contracts/language-service-expected.md` fixes, and it is what gives a user one name to install
- * and the facade one place to say what is missing.
+ * ONE ENTRY. Reaching the component through the shared name's subpath rather than through its own
+ * package name is what `contracts/language-service-expected.md` fixes, and it is what gives a user
+ * one name to install and the facade one place to say what is missing.
  *
- * THE SECOND ENTRY EXISTS BECAUSE THE FIRST CANNOT BE INSTALLED YET. `@idfkit/idfkit` is not on
- * the npm registry. The registry refused the unscoped name `idfkit` to its similarity filter, and
- * support confirmed on 2026-09-14 that no exception is possible, so the facade moved to the scoped
- * name; it has not been published under it yet, and the publish workflow's shared-name job does
- * not run on release. The scoped packages
- * ship on time and the shared name does not, which would leave this server unable to answer for a
- * reason that has nothing to do with either repository's code.
- *
- * So the component is accepted under its own name when the shared name is absent. This is a
- * fallback and not a second supported way in: nothing else in this repository names the component,
- * the guard's message still asks for the shared name where the shared name is what is missing, and
- * the day `@idfkit/idfkit` is published this array loses its second entry and nothing else changes.
+ * The component's own name used to follow it, as a fallback for the months `@idfkit/idfkit` was
+ * not on the npm registry. It is published now and is a dependency of this package, so the
+ * fallback had nothing left to cover and went, as `levels.json` said it would.
  */
-export const SPECIFIER_ORDER: readonly string[] = [SUBPATH, COMPONENT];
+export const SPECIFIER_ORDER: readonly string[] = [SUBPATH];
 
 /** The six functions `contracts/language-service.md` fixes. */
 const SURFACE = [
@@ -224,8 +209,7 @@ export async function loadLanguageService(
         continue;
       }
       // The guard ran, which means the shared name is installed and the component is not. That is
-      // a real answer from a real facade, and trying the component's own name after it would only
-      // fail again in worse words.
+      // a real answer from a real facade, and no later specifier could improve on it.
       if (isGuardRefusal(error)) {
         return { ok: false, origin: "guard", message: messageOf(error) };
       }

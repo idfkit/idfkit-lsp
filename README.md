@@ -82,9 +82,17 @@ Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpret
 `idfkitLsp.nodePath` does the same for the model server, and exists for the same reason: an
 environment that is not the one we guessed.
 
-Answers about model text additionally need the language service component, which the model server
-reaches through the `@idfkit/idfkit` facade. When it is absent, the model server reports what to install,
-in the component's own words, and the source server is unaffected.
+The model server is also published to npm as `@idfkit/language-server`, for editors other than
+VS Code. It needs Node 18 or newer, and brings the idfkit library and its language service with it:
+
+```bash
+npm install -g @idfkit/language-server
+```
+
+That puts `idfkit-language-server` on your path. `npx @idfkit/language-server --stdio` runs it
+without installing. The model server reaches the library through the `@idfkit/idfkit` facade; when
+the language service is absent, it reports what to install, in the component's own words, and the
+source server is unaffected.
 
 ## Using it from an editor that is not the targeted one
 
@@ -105,7 +113,7 @@ vim.lsp.config.idfkit_source = {
 }
 
 vim.lsp.config.idfkit_model = {
-  cmd = { 'node', '/path/to/idfkit-lsp/model-server/dist/main.js', '--stdio' },
+  cmd = { 'idfkit-language-server', '--stdio' },
   filetypes = { 'idf' },
   root_markers = { '.git' },
 }

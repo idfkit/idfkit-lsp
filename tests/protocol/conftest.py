@@ -23,6 +23,13 @@ asks for and what research R8 records:
 
 Neither variable is set in ordinary use, and the header says so plainly rather than letting a run
 against the published levels pass for a run against a candidate.
+
+**The packed model server.** ``MODEL_SERVER_PACKAGE`` names a directory where the published
+package was installed from its tarball (``<prefix>/node_modules/@idfkit/language-server``). The
+model server is then started from that directory's bundle and resolves its libraries from that
+install, not from this checkout, which is what a user of the npm package runs. A packed server that
+cannot answer is a broken package rather than a missing component, so where the model server would
+otherwise be skipped it fails instead.
 """
 
 from __future__ import annotations
@@ -34,7 +41,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pytest
 
@@ -49,19 +56,18 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 CANDIDATE_FIRST = "CANDIDATE_FIRST"
 CANDIDATE_SECOND = "CANDIDATE_SECOND"
+MODEL_SERVER_PACKAGE = "MODEL_SERVER_PACKAGE"
 
-_COMPONENT = "@idfkit/language"
 _SUBPATH = "@idfkit/idfkit/language"
 _PROBE_TIMEOUT = 60.0
 
 # Resolution is asked of the runtime rather than answered by looking for a directory: an export
 # map, a workspace link, and a candidate on NODE_PATH all resolve, and only the runtime knows.
-# The specifiers the model server accepts, in the order it accepts them. The shared name is
-# preferred and is what a user should install; the component's own name is the fallback the server
-# takes while the shared name is unregistrable on npm. The probe has to agree with that order,
-# because a probe that only knew the shared name would skip every model-text group on an install
-# the server can in fact answer from. ``model-server/src/service.ts`` holds the order itself.
-_ACCEPTED = (_SUBPATH, _COMPONENT)
+# The specifiers the model server accepts, in the order it accepts them. Only the shared name's
+# subpath, now that ``@idfkit/idfkit`` is published. The probe has to agree with the server, because
+# a probe that accepted a name the server does not would run model-text groups the server cannot
+# answer. ``model-server/src/service.ts`` holds the order itself.
+_ACCEPTED = (_SUBPATH,)
 
 _PROBE = (
     "const accepted = "
@@ -142,8 +148,13 @@ def _source_interpreter() -> str:
     return sys.executable
 
 
+def _model_package() -> Path:
+    """The directory the model server runs from: this checkout's, or an installed tarball's."""
+    return _directory(MODEL_SERVER_PACKAGE) or REPOSITORY_ROOT / "model-server"
+
+
 def _model_bundle() -> Path:
-    return REPOSITORY_ROOT / "model-server" / "dist" / "main.js"
+    return _model_package() / "dist" / "main.js"
 
 
 def _model_description(node: str, builds: CandidateBuilds) -> ServerDescription:
@@ -154,7 +165,7 @@ def _model_description(node: str, builds: CandidateBuilds) -> ServerDescription:
         name="model server",
         command=node,
         args=(str(_model_bundle()), "--stdio"),
-        cwd=REPOSITORY_ROOT / "model-server",
+        cwd=_model_package(),
         env=environment or None,
     )
 
@@ -168,7 +179,7 @@ def _probe_component(environment: dict[str, str]) -> ComponentProbe:
     try:
         completed = subprocess.run(
             [node, "--input-type=module", "-e", _PROBE],
-            cwd=str(REPOSITORY_ROOT / "model-server"),
+            cwd=str(_model_package()),
             env=merged,
             capture_output=True,
             text=True,
@@ -182,6 +193,8 @@ def _probe_component(environment: dict[str, str]) -> ComponentProbe:
 
 
 def _missing_bundle() -> str:
+    if _directory(MODEL_SERVER_PACKAGE) is not None:
+        return f"the installed package has no bundle at {_model_bundle()}"
     return (
         f"the bundle {_model_bundle().relative_to(REPOSITORY_ROOT)} has not been built "
         "(make build)"
@@ -197,7 +210,17 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
     return [
         CandidateBuilds.from_environment().describe(),
         f"source server: {_source_interpreter()} -m idfkit_lsp",
+        f"model server: {_model_bundle()}",
     ]
+
+
+def _skip_or_fail(reason: str) -> NoReturn:
+    """Skip in a checkout, where an absence is not this repository being wrong; fail when packed."""
+    if _directory(MODEL_SERVER_PACKAGE) is not None:
+        pytest.fail(
+            f"{MODEL_SERVER_PACKAGE} is set, so this is the published package failing: {reason}"
+        )
+    pytest.skip(reason)
 
 
 @pytest.fixture(scope="session")
@@ -231,7 +254,7 @@ def model_server_description(candidate_builds: CandidateBuilds) -> ServerDescrip
     if node is None:
         pytest.skip("no node runtime is on PATH, so the model server cannot be started")
     if not _model_bundle().is_file():
-        pytest.skip(f"the model server cannot be started: {_missing_bundle()}")
+        _skip_or_fail(f"the model server cannot be started: {_missing_bundle()}")
     return _model_description(node, candidate_builds)
 
 
@@ -265,7 +288,7 @@ def model_server(candidate_builds: CandidateBuilds) -> Iterator[ProtocolClient]:
     if not probe.resolved:
         missing.append(_missing_component(probe))
     if missing:
-        pytest.skip("the model server cannot answer yet: " + "; and ".join(missing))
+        _skip_or_fail("the model server cannot answer yet: " + "; and ".join(missing))
     client = start_server(description)
     try:
         yield client

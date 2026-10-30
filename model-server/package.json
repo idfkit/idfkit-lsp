@@ -1,37 +1,47 @@
 {
-  "name": "@idfkit/lsp-model-server",
-  "private": true,
+  "name": "@idfkit/language-server",
   "version": "0.3.0",
   "description": "Language server for EnergyPlus model text. Translates the idfkit language service into the Language Server Protocol.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idfkit/idfkit-lsp.git",
+    "directory": "model-server"
+  },
+  "homepage": "https://github.com/idfkit/idfkit-lsp#readme",
+  "bugs": "https://github.com/idfkit/idfkit-lsp/issues",
   "type": "module",
   "main": "./dist/main.js",
+  "bin": {
+    "idfkit-language-server": "dist/main.js"
+  },
+  "files": [
+    "dist/main.js",
+    "dist/capabilities.json"
+  ],
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
+    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap && node -e \"require('node:fs').copyFileSync('../capabilities.json', 'dist/capabilities.json')\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "npm run build && node -e \"require('node:fs').copyFileSync('../LICENSE', 'LICENSE')\""
   },
   "dependencies": {
     "@idfkit/core": "0.4.0",
+    "@idfkit/idfkit": "0.4.0",
     "@idfkit/language": "0.4.0",
     "vscode-languageserver": "10.1.1",
     "vscode-languageserver-textdocument": "1.0.14"
-  },
-  "peerDependencies": {
-    "@idfkit/idfkit": "0.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@idfkit/idfkit": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/node": "22.10.2",
     "esbuild": "0.27.3",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

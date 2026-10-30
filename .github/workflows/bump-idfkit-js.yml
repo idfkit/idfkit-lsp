@@ -133,6 +133,7 @@ jobs:
         run: |
           uv run --extra dev --project server python -m tools.declare_level @idfkit/core model-server/package.json
           uv run --extra dev --project server python -m tools.declare_level @idfkit/language model-server/package.json
+          uv run --extra dev --project server python -m tools.declare_level @idfkit/idfkit model-server/package.json
       - name: List the statements this adoption surfaces
         id: statements
         env:

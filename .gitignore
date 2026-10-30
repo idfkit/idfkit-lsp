@@ -24,6 +24,8 @@ env/
 node_modules/
 client/dist/
 model-server/dist/
+# Copied from the repository root by `npm pack`, so the published package carries the licence.
+model-server/LICENSE
 
 # Lockfiles are tracked deliberately: `npm ci` needs them, and Principle III's exact pins are only
 # reproducible down to the transitive level with them.

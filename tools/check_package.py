@@ -1,0 +1,151 @@
+"""Check the model server's npm package as a user receives it, not as this checkout holds it.
+
+The protocol suite proves the bundle answers. It cannot prove the tarball carries the bundle, that
+the declaration inside it is the root's, or that the command a user types starts anything: all
+three are facts about ``npm pack`` and ``npm install``, which a checkout never runs. This check
+reads the tarball ``npm pack`` wrote and starts the command an install of it put on the path.
+
+    python -m tools.check_package --tarball <file.tgz> --installed <prefix>
+
+``<prefix>`` is the directory the tarball was installed into, the one holding ``node_modules``.
+Run by CI on every change and by the release workflow before anything is published.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import tarfile
+import threading
+from pathlib import Path
+from typing import Any
+
+from ._common import Report, read_json, repository_root
+
+MANIFEST = "model-server/package.json"
+
+# What the package must carry, and nothing else: a file missing breaks an install, and a file
+# nobody listed is source or a map nobody meant to publish.
+EXPECTED_MEMBERS = frozenset(
+    {
+        "package/package.json",
+        "package/LICENSE",
+        "package/dist/main.js",
+        "package/dist/capabilities.json",
+    }
+)
+
+_STARTUP_SECONDS = 30.0
+
+
+def _check_tarball(root: Path, tarball: Path, report: Report) -> None:
+    with tarfile.open(tarball, "r:gz") as archive:
+        members = {member.name for member in archive.getmembers() if member.isfile()}
+        for missing in sorted(EXPECTED_MEMBERS - members):
+            report.fail(tarball, f"the package does not carry {missing}")
+        for extra in sorted(members - EXPECTED_MEMBERS):
+            report.fail(tarball, f"the package carries {extra}, which nothing asked it to publish")
+        if "package/dist/capabilities.json" in members:
+            packed = archive.extractfile("package/dist/capabilities.json")
+            declared = (root / "capabilities.json").read_bytes()
+            if packed is None or packed.read() != declared:
+                report.fail(
+                    tarball,
+                    "dist/capabilities.json differs from the root capabilities.json, so the "
+                    "published server would advertise from a stale declaration",
+                )
+
+
+def _frame(message: dict[str, Any]) -> bytes:
+    body = json.dumps(message).encode("utf-8")
+    return b"Content-Length: %d\r\n\r\n" % len(body) + body
+
+
+def _read_frame(process: subprocess.Popen[bytes]) -> dict[str, Any]:
+    assert process.stdout is not None
+    header = b""
+    while not header.endswith(b"\r\n\r\n"):
+        byte = process.stdout.read(1)
+        if not byte:
+            raise RuntimeError("the server closed its output before answering")
+        header += byte
+    length = next(
+        int(line.split(b":", 1)[1])
+        for line in header.split(b"\r\n")
+        if line.lower().startswith(b"content-length:")
+    )
+    return json.loads(process.stdout.read(length))
+
+
+def _check_command(installed: Path, name: str, command: str, report: Report) -> None:
+    """Start the installed command and ask it who it is."""
+    executable = shutil.which(command, path=str(installed / "node_modules" / ".bin"))
+    if executable is None:
+        report.fail(installed, f"installing the package put no {command!r} command on the path")
+        return
+    process = subprocess.Popen(
+        [executable, "--stdio"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=installed,
+    )
+    # A server that never answers would hang the check, so a timer ends it and the read sees EOF.
+    watchdog = threading.Timer(_STARTUP_SECONDS, process.kill)
+    watchdog.start()
+    try:
+        assert process.stdin is not None
+        process.stdin.write(
+            _frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {"processId": None, "rootUri": None, "capabilities": {}},
+                }
+            )
+        )
+        process.stdin.flush()
+        # Notifications may arrive before the answer; the answer is the frame carrying our id.
+        while True:
+            message = _read_frame(process)
+            if message.get("id") == 1:
+                break
+        served = message.get("result", {}).get("serverInfo", {}).get("name")
+        if served != name:
+            report.fail(
+                installed,
+                f"{command} --stdio answered initialize as {served!r}, not as {name!r}",
+            )
+    except (RuntimeError, OSError, ValueError, StopIteration) as exc:
+        report.fail(installed, f"{command} --stdio did not answer initialize: {exc}")
+    finally:
+        watchdog.cancel()
+        process.kill()
+        process.wait(timeout=_STARTUP_SECONDS)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n", 1)[0])
+    parser.add_argument("--tarball", type=Path, required=True)
+    parser.add_argument("--installed", type=Path, required=True)
+    args = parser.parse_args(argv)
+
+    root = repository_root()
+    manifest = read_json(root / MANIFEST)
+    name: str = manifest["name"]
+    commands: dict[str, str] = manifest.get("bin", {})
+
+    report = Report("check_package")
+    _check_tarball(root, args.tarball, report)
+    if len(commands) != 1:
+        report.fail(MANIFEST, "declares other than one command, so `npx <package>` is ambiguous")
+    for command in commands:
+        _check_command(args.installed.resolve(), name, command, report)
+    return report.finish()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

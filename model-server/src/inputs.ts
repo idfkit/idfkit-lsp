@@ -41,21 +41,15 @@ import type {
 import type { CallerInputs } from "./main.js";
 
 /**
- * The specifiers this module resolves, each with the fallback it accepts.
+ * The specifiers this module resolves.
  *
- * The shared name is preferred and is the one a user should install. It is not on the npm registry
- * today: the registry refused the unscoped name `idfkit`, and the facade has not yet been published
- * as `@idfkit/idfkit`, so the component's own name is accepted after it. `service.ts` carries the
- * same pair and the same reason for the language service; both lose their fallback on the day
- * `@idfkit/idfkit` is published.
- *
- * The shared name's `index.js` and `node.js` are plain re-exports of exactly these two, so the
- * fallback resolves the same code and not a substitute for it.
+ * Both belong to the shared name, which is a dependency of this package. The component's own names
+ * (`@idfkit/core`, `@idfkit/core/node`) used to be accepted after them, for the months
+ * `@idfkit/idfkit` was not on the npm registry. It is published now, so `service.ts` and this module
+ * lost their fallbacks together, as `levels.json` said they would.
  */
 export const CORE_SUBPATH = "@idfkit/idfkit";
-export const CORE_FALLBACK = "@idfkit/core";
 export const NODE_SUBPATH = "@idfkit/idfkit/node";
-export const NODE_FALLBACK = "@idfkit/core/node";
 
 /**
  * What this module says when the library is not installed.
@@ -65,15 +59,12 @@ export const NODE_FALLBACK = "@idfkit/core/node";
  */
 export const CORE_NOT_INSTALLED =
   "The model server resolves schemas, parses models and classifies text through idfkit, and " +
-  `neither '${CORE_SUBPATH}' nor '${CORE_FALLBACK}' could be resolved here.\n` +
+  `'${CORE_SUBPATH}' could not be resolved here.\n` +
   "\n" +
-  `    npm install ${CORE_FALLBACK}\n` +
+  `    npm install ${CORE_SUBPATH}\n` +
   "\n" +
-  `The shared install name, '${CORE_SUBPATH}', is the one this server prefers and is not on the ` +
-  "npm registry yet: the registry refused the unscoped name 'idfkit', and the facade has not yet " +
-  "been published under its scoped name. So install the package under its own name for now. Until it is there this server " +
-  "answers nothing about model text and says so rather than guessing. The Python server, which " +
-  "serves Python source, is unaffected.";
+  "Until it is there this server answers nothing about model text and says so rather than " +
+  "guessing. The Python server, which serves Python source, is unaffected.";
 
 /** The members of the library this module calls, and nothing more. */
 interface CoreSurface {
@@ -143,20 +134,11 @@ export async function loadInputs(
   onSchemaArrived: SchemaArrived = () => {},
   load: Importer = importSubpath,
 ): Promise<InputsLoad> {
-  /** The first specifier that resolves, or the last failure, reported in the shared name's terms. */
-  async function resolve<T>(preferred: string, fallback: string): Promise<T> {
-    try {
-      return (await load(preferred)) as T;
-    } catch {
-      return (await load(fallback)) as T;
-    }
-  }
-
   let core: CoreSurface;
   let node: NodeSurface;
   try {
-    core = await resolve<CoreSurface>(CORE_SUBPATH, CORE_FALLBACK);
-    node = await resolve<NodeSurface>(NODE_SUBPATH, NODE_FALLBACK);
+    core = (await load(CORE_SUBPATH)) as CoreSurface;
+    node = (await load(NODE_SUBPATH)) as NodeSurface;
   } catch (error: unknown) {
     const stated = error instanceof Error ? error.message : String(error);
     return {

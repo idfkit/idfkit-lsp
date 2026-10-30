@@ -183,3 +183,53 @@ jobs:
         working-directory: model-server
 
       - run: uv run --project server python -m pytest tests/protocol -v -rs
+
+  # The model server as npm publishes it: packed, installed from the tarball into a directory that
+  # has never seen this checkout, and driven by the same protocol suite. The suite above runs the
+  # bundle in place, which cannot catch a file the tarball forgot or a command that does not start.
+  packed:
+    name: Packed model server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: uv sync --extra dev
+        working-directory: server
+
+      - run: npm ci
+        working-directory: model-server
+
+      # `npm pack` runs `prepack`, which builds the bundle and copies the licence in.
+      - name: Pack
+        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+        working-directory: model-server
+
+      - name: Install from the tarball
+        run: |
+          mkdir "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/*.tgz
+
+      - name: The tarball carries what the server needs, and its command starts
+        run: >-
+          uv run --project server python -m tools.check_package
+          --tarball "$(ls "$RUNNER_TEMP"/pack/*.tgz)"
+          --installed "$RUNNER_TEMP/consumer"
+
+      # Without the bundle in the checkout, so nothing can quietly fall back to it.
+      - name: Protocol suite against the installed package
+        run: |
+          rm -rf model-server/dist
+          uv run --project server python -m pytest tests/protocol -v -rs
+        env:
+          MODEL_SERVER_PACKAGE: ${{ runner.temp }}/consumer/node_modules/@idfkit/language-server

@@ -110,11 +110,9 @@ describe('loadLanguageService with the component absent', () => {
     if (result.ok) throw new Error('unreachable');
     expect(result.origin).toBe('resolver');
     expect(result.message).toBe(NOT_INSTALLED);
-    // The component's own name, not the shared name. This is the one place this repository does
-    // not send a user to the shared name, because the shared name is not on npm and an
-    // instruction that reads better but fails is worse than one that works.
-    expect(result.message).toContain(`npm install ${COMPONENT}`);
-    expect(result.message).toContain(SHARED_NAME);
+    // Both names: the language service is an optional component of the shared name, so an
+    // install of the shared name alone would only trade this message for the guard's.
+    expect(result.message).toContain(`npm install ${SHARED_NAME} ${COMPONENT}`);
   });
 
   it('treats an unresolvable subpath the same way', async () => {
@@ -322,8 +320,8 @@ describe('which specifier the service is reached through', () => {
     expect(SPECIFIER_ORDER[0]).toBe(SUBPATH);
   });
 
-  it('accepts the component under its own name after it', () => {
-    expect(SPECIFIER_ORDER).toEqual([SUBPATH, COMPONENT]);
+  it('accepts no other name, now that the shared name is published', () => {
+    expect(SPECIFIER_ORDER).toEqual([SUBPATH]);
   });
 
   it('asks for the shared name first and stops there when it resolves', async () => {
@@ -337,7 +335,7 @@ describe('which specifier the service is reached through', () => {
     expect(asked).toEqual([SUBPATH]);
   });
 
-  it('falls back to the component when the shared name resolves to nothing', async () => {
+  it('does not fall back to the component when the shared name resolves to nothing', async () => {
     const asked: string[] = [];
     const result = await loadLanguageService((specifier) => {
       asked.push(specifier);
@@ -345,20 +343,10 @@ describe('which specifier the service is reached through', () => {
       return Promise.resolve(stubService());
     });
 
-    expect(result.ok).toBe(true);
-    expect(asked).toEqual([SUBPATH, COMPONENT]);
-  });
-
-  it('reports the shared name as what to install when neither resolves', async () => {
-    const result = await loadLanguageService((specifier) =>
-      Promise.reject(resolverError(specifier)),
-    );
-
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
-    // The fallback exists so this server can answer, not so a user learns to install the
-    // component directly. What to install is still the shared name.
     expect(result.message).toBe(NOT_INSTALLED);
+    expect(asked).toEqual([SUBPATH]);
   });
 
   it("does not try the component after the facade's guard has already spoken", async () => {

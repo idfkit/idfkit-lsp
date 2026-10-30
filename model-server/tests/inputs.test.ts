@@ -10,10 +10,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  CORE_FALLBACK,
   CORE_NOT_INSTALLED,
   CORE_SUBPATH,
-  NODE_FALLBACK,
   NODE_SUBPATH,
   loadInputs,
 } from '../src/inputs.js';
@@ -80,7 +78,7 @@ function fakeLibrary(options: FakeOptions = {}) {
       Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' });
       return Promise.reject(error);
     }
-    if (specifier === CORE_SUBPATH || specifier === CORE_FALLBACK) return Promise.resolve(core);
+    if (specifier === CORE_SUBPATH) return Promise.resolve(core);
     return Promise.resolve(node);
   };
 
@@ -236,20 +234,21 @@ describe('which specifiers the inputs are resolved through', () => {
     expect(library.asked).toEqual([CORE_SUBPATH, NODE_SUBPATH]);
   });
 
-  it("falls back to the component's own name where the shared name resolves to nothing", async () => {
+  it("does not fall back to the component's own name, which the shared name now covers", async () => {
     const library = fakeLibrary();
-    const result = await loadInputs(() => {}, library.serving([CORE_FALLBACK, NODE_FALLBACK]));
+    const result = await loadInputs(() => {}, library.serving(['@idfkit/core', '@idfkit/core/node']));
 
-    expect(result.ok).toBe(true);
-    expect(library.asked).toEqual([CORE_SUBPATH, CORE_FALLBACK, NODE_SUBPATH, NODE_FALLBACK]);
+    expect(result.ok).toBe(false);
+    expect(library.asked).toEqual([CORE_SUBPATH]);
   });
 
-  it('reports the shared name as what to install when neither resolves', async () => {
+  it('reports the shared name as what to install when it does not resolve', async () => {
     const library = fakeLibrary();
     const result = await loadInputs(() => {}, library.serving([]));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.message).toContain(CORE_NOT_INSTALLED);
+    expect(result.message).toContain(`npm install ${CORE_SUBPATH}`);
   });
 });
