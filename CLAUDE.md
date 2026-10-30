@@ -169,10 +169,11 @@ either kind that is not bundled needs its own line there.
 
 ## Publishing the extension
 
-Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with the vsce
-locked in `.github/vsce/`, runs the protocol suite against the unpacked VSIX through
-`MODEL_SERVER_PACKAGE`, uploads the file as an artifact, and attaches it to the GitHub release.
-`publish-vsix` downloads that artifact and publishes it to the Marketplace with `--packagePath` and
+Three jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with the vsce
+locked in `.github/vsce/`, runs `tools/check_vsix.py` and the protocol suite against the unpacked
+VSIX through `MODEL_SERVER_PACKAGE`, and uploads the file as an artifact. `attach-vsix` holds
+`contents: write`, has no checkout, and attaches that artifact to the GitHub release.
+`publish-vsix` downloads the same artifact and publishes it to the Marketplace with `--packagePath` and
 `--oidc`, so no token is stored. A prerelease is skipped, because the Marketplace accepts only
 major.minor.patch. The publisher and its Trusted Publishing policy are a one-time prerequisite,
 stated at the top of the workflow, along with the fallback for a first upload that `--oidc` does not
@@ -186,8 +187,9 @@ and every check, and has no `id-token`. The publish job holds `id-token: write`,
 file as an artifact, and uploads it without rebuilding. Do not add a step to a publish job that
 installs or runs project code.
 
-- `publish` and `publish-npm` have no checkout and no project. `publish` states its uv level on the
-  setup step, and `publish-npm` takes the dist-tag from the release tag.
+- `publish` and `publish-npm` have no checkout and no project. Every job in `release.yml` states the
+  same uv level on the setup step, because no project names one, and `publish-npm` takes the dist-tag
+  from the release tag and GitHub's prerelease flag.
 - `publish-vsix` needs vsce, which performs the OIDC exchange itself, so it checks out only
   `.github/vsce/package.json` and `.github/vsce/package-lock.json` and runs
   `npm ci --ignore-scripts` there. `@vscode/vsce-sign`'s install script therefore does not run, and

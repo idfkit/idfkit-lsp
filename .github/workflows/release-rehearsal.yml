@@ -12,8 +12,10 @@
 #
 # WHAT THIS DOES NOT SHOW: that a registry accepts the upload, that a trusted publisher or a policy
 # is registered correctly, or how a rerun behaves. It also repeats no check from the package jobs in
-# release.yml, because `ci.yml` runs those on every change. `tools/tests/test_release_workflow.py`
-# holds the two files to the same pinned actions and the same level of uv.
+# release.yml that `ci.yml` runs on the same file, which excludes `check_vsix`: the VSIX in `ci.yml`
+# comes from the root manifest's level of vsce, and the one here from the level in `.github/vsce/`.
+# `tools/tests/test_release_workflow.py` holds the two files to the same pinned actions and the same
+# level of uv.
 
 name: release-rehearsal
 
@@ -37,6 +39,8 @@ jobs:
           persist-credentials: false
 
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.13.1"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -64,6 +68,11 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/vsix"
           .github/vsce/node_modules/.bin/vsce package --out "$RUNNER_TEMP/vsix/"
+
+      - name: The VSIX carries what the client reads, and its model server advertises the declaration
+        run: |
+          unzip -q "$RUNNER_TEMP"/vsix/*.vsix -d "$RUNNER_TEMP/unpacked"
+          uv run --extra dev --project server python -m tools.check_vsix --extension "$RUNNER_TEMP/unpacked/extension"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -25,12 +25,38 @@ RELEASE = WORKFLOWS / "release.yml"
 REHEARSAL = WORKFLOWS / "release-rehearsal.yml"
 VSCE_LOCK = repository_root() / ".github" / "vsce" / "package-lock.json"
 
-# Each publish job, with the job that builds and checks its file, and the artifact between them.
-PAIRS = {
-    "publish": ("package-wheel", "wheel"),
-    "publish-npm": ("package-npm", "npm-tarball"),
-    "publish-vsix": ("package-vsix", "vsix"),
-}
+
+@dataclass(frozen=True)
+class Publication:
+    """A publish job, the job that builds and checks its file, and the artifact between them."""
+
+    publish: str
+    package: str
+    artifact: str
+    actions: frozenset[str]
+    """Every action the publish job may run, since each one runs beside its OIDC token."""
+
+
+PUBLICATIONS = (
+    Publication(
+        publish="publish",
+        package="package-wheel",
+        artifact="wheel",
+        actions=frozenset({"actions/download-artifact", "astral-sh/setup-uv"}),
+    ),
+    Publication(
+        publish="publish-npm",
+        package="package-npm",
+        artifact="npm-tarball",
+        actions=frozenset({"actions/download-artifact", "actions/setup-node"}),
+    ),
+    Publication(
+        publish="publish-vsix",
+        package="package-vsix",
+        artifact="vsix",
+        actions=frozenset({"actions/checkout", "actions/download-artifact", "actions/setup-node"}),
+    ),
+)
 NO_CHECKOUT = ("publish", "publish-npm")
 VSCE_DIRECTORY = ".github/vsce"
 VSCE_CHECKOUT_PATHS = ["/.github/vsce/package.json", "/.github/vsce/package-lock.json"]
@@ -62,23 +88,33 @@ class Job:
     name: str
     permissions: dict[str, str]
     needs: tuple[str, ...]
-    condition: str
     steps: tuple[Step, ...]
+
+    @property
+    def actions(self) -> set[str]:
+        return {step.action for step in self.steps if step.uses}
 
     def using(self, action: str) -> list[Step]:
         return [step for step in self.steps if step.action == action]
 
 
+def _permissions(value: Any, where: str) -> dict[str, str]:
+    """Refuse the string forms: `"id-token" in "write-all"` is false, and `write-all` grants it."""
+    if not isinstance(value, dict):
+        raise TypeError(f"{where} declares `permissions: {value}`, which names no single scope")
+    return value
+
+
 def load_jobs(path: Path) -> dict[str, Job]:
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    inherited = _permissions(document["permissions"], path.name)
     jobs: dict[str, Job] = {}
     for name, body in document["jobs"].items():
         needs = body.get("needs", ())
         jobs[name] = Job(
             name=name,
-            permissions=body.get("permissions", document["permissions"]),
+            permissions=_permissions(body.get("permissions", inherited), f"{path.name}:{name}"),
             needs=(needs,) if isinstance(needs, str) else tuple(needs),
-            condition=body.get("if", ""),
             steps=tuple(
                 Step(
                     uses=step.get("uses", ""),
@@ -105,8 +141,21 @@ def rehearsal() -> dict[str, Job]:
 
 def test_only_the_publish_jobs_can_request_a_token(release: dict[str, Job]) -> None:
     holders = {name for name, job in release.items() if "id-token" in job.permissions}
-    assert holders == set(PAIRS)
+    assert holders == {publication.publish for publication in PUBLICATIONS}
     assert "id-token" not in yaml.safe_load(RELEASE.read_text(encoding="utf-8"))["permissions"]
+
+
+def test_only_the_job_that_attaches_the_vsix_can_write(release: dict[str, Job]) -> None:
+    writers = {name for name, job in release.items() if "write" in job.permissions.values()}
+    assert writers == {publication.publish for publication in PUBLICATIONS} | {"attach-vsix"}
+    assert release["package-vsix"].permissions == {"contents": "read"}
+
+    attach = release["attach-vsix"]
+    assert attach.permissions == {"contents": "write"}
+    assert attach.needs == ("package-vsix",)
+    assert attach.actions == {"actions/download-artifact"}
+    for step in attach.steps:
+        assert not INSTALLS_OR_BUILDS.search(step.run), step.run
 
 
 def test_the_workflow_runs_only_on_a_published_release() -> None:
@@ -115,25 +164,31 @@ def test_the_workflow_runs_only_on_a_published_release() -> None:
     assert triggers == {"release": {"types": ["published"]}}
 
 
-@pytest.mark.parametrize("publish", PAIRS)
+@pytest.mark.parametrize("publication", PUBLICATIONS, ids=lambda item: item.publish)
 def test_each_publish_job_receives_its_file_from_its_package_job(
-    release: dict[str, Job], publish: str
+    release: dict[str, Job], publication: Publication
 ) -> None:
-    package, artifact = PAIRS[publish]
-    assert release[publish].needs == (package,)
+    assert release[publication.publish].needs == (publication.package,)
 
-    uploads = release[package].using("actions/upload-artifact")
-    downloads = release[publish].using("actions/download-artifact")
-    assert [step.inputs["name"] for step in uploads] == [artifact]
+    uploads = release[publication.package].using("actions/upload-artifact")
+    downloads = release[publication.publish].using("actions/download-artifact")
+    assert [step.inputs["name"] for step in uploads] == [publication.artifact]
     assert uploads[0].inputs["if-no-files-found"] == "error"
-    assert [step.inputs["name"] for step in downloads] == [artifact]
+    assert [step.inputs["name"] for step in downloads] == [publication.artifact]
 
 
-@pytest.mark.parametrize("publish", PAIRS)
-def test_a_package_job_refuses_a_wrong_tag_and_finishes_checking_before_the_handoff(
-    release: dict[str, Job], publish: str
+@pytest.mark.parametrize("publication", PUBLICATIONS, ids=lambda item: item.publish)
+def test_a_publish_job_runs_only_the_actions_it_needs(
+    release: dict[str, Job], publication: Publication
 ) -> None:
-    package = release[PAIRS[publish][0]]
+    assert release[publication.publish].actions == publication.actions
+
+
+@pytest.mark.parametrize("publication", PUBLICATIONS, ids=lambda item: item.publish)
+def test_a_package_job_refuses_a_wrong_tag_and_finishes_checking_before_the_handoff(
+    release: dict[str, Job], publication: Publication
+) -> None:
+    package = release[publication.package]
     upload = package.steps.index(package.using("actions/upload-artifact")[0])
     refusal = [
         index
@@ -144,14 +199,22 @@ def test_a_package_job_refuses_a_wrong_tag_and_finishes_checking_before_the_hand
     assert refusal[0] < upload
     assert "id-token" not in package.permissions
 
-    # The attachment to the release follows the handoff, and checks nothing.
     checks = [
         index
         for index, step in enumerate(package.steps)
-        if re.search(r"check_package|zipfile|tests/protocol", step.run)
+        if re.search(r"check_package|check_vsix|zipfile|tests/protocol", step.run)
     ]
     assert checks, f"{package.name} checks nothing"
     assert max(checks) < upload
+
+
+@pytest.mark.parametrize(
+    ("path", "job"),
+    [(RELEASE, "package-vsix"), (REHEARSAL, "package")],
+    ids=["release", "rehearsal"],
+)
+def test_the_vsix_from_the_locked_vsce_is_held_to_check_vsix(path: Path, job: str) -> None:
+    assert any("tools.check_vsix" in step.run for step in load_jobs(path)[job].steps)
 
 
 @pytest.mark.parametrize("publish", NO_CHECKOUT)
@@ -219,10 +282,20 @@ def test_the_rehearsal_uses_the_actions_and_the_uv_of_the_release(
         return {step.uses for job in jobs.values() for step in job.steps if step.uses}
 
     assert actions(rehearsal) == actions(release)
-    assert (
-        rehearsal["rehearse-wheel"].using("astral-sh/setup-uv")[0].inputs["version"]
-        == release["publish"].using("astral-sh/setup-uv")[0].inputs["version"]
-    )
+
+
+def test_every_job_states_one_level_of_uv(
+    release: dict[str, Job], rehearsal: dict[str, Job]
+) -> None:
+    # No project names a level, so a setup step that omits it follows the latest release of uv.
+    levels = {
+        step.inputs.get("version")
+        for jobs in (release, rehearsal)
+        for job in jobs.values()
+        for step in job.using("astral-sh/setup-uv")
+    }
+    assert len(levels) == 1
+    assert None not in levels
 
 
 @pytest.mark.parametrize("path", [RELEASE, REHEARSAL], ids=lambda path: path.name)

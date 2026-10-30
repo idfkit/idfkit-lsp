@@ -54,9 +54,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the client and the model server, and `.vscodeignore` keeps `@idfkit/idfkit`, `@idfkit/core`,
   `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
   `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
+- A release that GitHub marks as a prerelease now reaches npm under `next` when its tag carries no
+  suffix. It previously went to `latest`.
+- The release workflow now runs `tools/check_vsix.py` on the VSIX it publishes. `ci.yml` runs that
+  check only on a VSIX built by the root manifest's level of vsce, which differs from the released
+  level.
 
 ### Security
 
+- The VSIX is attached to the GitHub release by `attach-vsix`, which runs no project code.
+  `package-vsix` no longer holds `contents: write`, because a process left running by a lifecycle
+  script could read the token from the environment of a later step in that job.
+- Every job in `release.yml` states the same level of uv, so the tool that writes the published wheel
+  no longer follows the latest uv release.
 - The release jobs that can request a registry credential no longer build the project. The PyPI and
   npm publications are each split into a package job with no `id-token`, which holds the tag refusal,
   the build and the checks, and a publish job with no checkout, which uploads the checked file from
