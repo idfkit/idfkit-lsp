@@ -30,7 +30,8 @@
                 ],
                 "extensions": [
                     ".idf"
-                ]
+                ],
+                "configuration": "./language-configuration.json"
             }
         ],
         "configuration": {

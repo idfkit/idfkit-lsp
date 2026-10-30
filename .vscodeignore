@@ -36,7 +36,8 @@ node_modules/**
 **/.ruff_cache/**
 *.vsix
 
-# Kept deliberately: model-server/dist/, capabilities.json, levels.json
+# Kept deliberately: model-server/dist/, capabilities.json, levels.json, language-configuration.json
 !model-server/dist/**
 !capabilities.json
 !levels.json
+!language-configuration.json

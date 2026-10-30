@@ -124,6 +124,10 @@ it rather than a reviewer:
 - No answer assembled locally when a library declines to give one. An absence is stated, and an
   absence that is permanent or temporary is recorded in `capabilities.json` with its kind
 
+`language-configuration.json` is the recorded exception: the line comment marker and nothing else,
+because no server can supply it (`retained_knowledge` in `capabilities.json`). A `wordPattern` or a
+TextMate grammar is a grammar pattern and stays out.
+
 A suppression is available and costs a sentence: `# check-knowledge: allow <reason>` or the `//`
 form. The reason is required, which is what keeps suppressions countable.
 

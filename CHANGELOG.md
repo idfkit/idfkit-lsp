@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Comment toggling for `.idf` files in VS Code, through a `language-configuration.json` holding the
+  line comment marker and nothing else. No server can supply the marker, because the protocol has no
+  such request, so it is recorded in `capabilities.json` as an editor-specific limitation and a
+  protocol test holds it against the language service. Other editors configure their own marker.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without

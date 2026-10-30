@@ -129,6 +129,12 @@ routed to the first and `idf` to the second. Which extensions belong to which se
 `capabilities.json` rather than in this readme, so a client that reads it does not need updating
 when a document kind moves.
 
+Two things about model text are not a server's to give. Toggling a comment has no protocol request,
+so VS Code reads the comment marker from `language-configuration.json`, and any other editor needs
+its own comment setting for `idf`; `capabilities.json` records this under `retained_knowledge`. And
+this repository holds no TextMate grammar, because the constitution forbids a grammar pattern here,
+so model text has no colour while the model server is unavailable.
+
 Ask either server what it is running:
 
 ```
