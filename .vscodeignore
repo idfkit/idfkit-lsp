@@ -36,7 +36,10 @@ node_modules/**
 **/.ruff_cache/**
 *.vsix
 
-# Kept deliberately: model-server/dist/, capabilities.json, levels.json
+# Kept deliberately: model-server/dist/, capabilities.json, levels.json, and the @idfkit packages.
+# The bundle leaves @idfkit/* external and @idfkit/schemas is read from disk, so those packages must
+# sit in model-server/node_modules at run time. Every other package there is bundled or dev only.
 !model-server/dist/**
+!model-server/node_modules/@idfkit/**
 !capabilities.json
 !levels.json
