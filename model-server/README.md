@@ -37,6 +37,11 @@ vim.filetype.add({ extension = { idf = 'idf' } })
 An editor extension (Zed, for example) can install this package and run its `dist/main.js` with
 `--stdio` on the editor's own Node runtime.
 
+The protocol has no request for toggling a comment, so this server cannot configure it. Set the
+editor's own comment setting for `idf` to the `comments.lineComment` value in
+[`language-configuration.json`](https://github.com/idfkit/idfkit-lsp/blob/main/language-configuration.json).
+In Neovim that setting is the `commentstring` option, written as the marker followed by ` %s`.
+
 ## What it answers
 
 What this server answers, and what it never will, is declared in

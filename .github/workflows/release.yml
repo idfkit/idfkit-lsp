@@ -23,6 +23,40 @@
 # trusted publisher on npmjs.com for `@idfkit/language-server` with organization `idfkit`,
 # repository `idfkit-lsp` and workflow `release.yml`. Until that exists the npm publish step fails
 # and the PyPI job is unaffected, because the two jobs do not depend on each other.
+#
+# THE EXTENSION GOES TO THE VS CODE MARKETPLACE FROM THE SAME RELEASE, as `idfkit.idfkit-lsp`. Same
+# rule for the tag, which must match the root `package.json`, and neither job below depends on the
+# PyPI or npm job. `package-vsix` builds the VSIX once with `vsce package`, checks it, and hands it
+# to `publish-vsix` as an artifact. `vsce publish --packagePath` uploads that file without running
+# `vscode:prepublish` again, so the file checked is the file published. The same file is attached
+# to the GitHub release first, for an editor that does not read the Marketplace, so a failed
+# Marketplace upload still leaves it installable.
+#
+# THE TWO JOBS ARE SEPARATE SO THAT `id-token: write` IS HELD ONLY WHERE NO PROJECT DEPENDENCY IS
+# INSTALLED OR RUN. `package-vsix` runs npm's lifecycle scripts and the protocol suite and cannot
+# request an OIDC token. `publish-vsix` can, and has no checkout and no `npm ci`.
+#
+# Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for
+# `publish-vsix` for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE:
+# create the Marketplace publisher with the ID `idfkit`, which is what the root `package.json` names
+# and which cannot be changed afterwards, then add a Trusted Publishing policy on the publisher
+# management page with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`, and no
+# environment. The policy names the workflow file and no job.
+# Until that exists the publish step fails, nothing reaches the Marketplace, and the other two jobs
+# are unaffected. The documentation's `vsce login` verification step prompts for a personal access
+# token, which this route does not use, so that step does not apply.
+#
+# THE FIRST UPLOAD IS UNVERIFIED. The documentation does not say whether `--oidc` works for the
+# first upload of a new extension. If the Marketplace refuses it, the documented fallback is to
+# upload the VSIX attached to the release on the publisher management page, by hand. Later releases
+# then publish through this job.
+#
+# A PRERELEASE IS SKIPPED, NOT SENT TO THE PRE-RELEASE CHANNEL. The Marketplace accepts only
+# major.minor.patch, and `vsce package` does not say so: only `vsce publish` refuses a suffix. The
+# channel would therefore need a version other than the one the tag and the manifest declare, and
+# the tag and the declared version are one fact. A release is skipped when GitHub marks it a
+# prerelease or its tag carries a suffix. Promoting a prerelease later does not run this workflow,
+# since promotion is not the `published` event, so that version needs a new release to get here.
 
 name: release
 
@@ -145,3 +179,132 @@ jobs:
             *) tag=latest ;;
           esac
           npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public --tag "$tag"
+
+  package-vsix:
+    if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the VSIX to the release
+    env:
+      VSCE: "@vscode/vsce@4.1.0"
+    steps:
+      # No credential left in the checkout: this job holds a write token and runs npm's lifecycle
+      # scripts, and only the step that attaches the file is given the token.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v7
+
+      # vsce 4.1.0 declares Node 22 as its floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Refuse a release whose tag is not the declared version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          declared=$(node -p 'require("./package.json").version')
+          if [ "${TAG#v}" != "$declared" ]; then
+            echo "::error title=Tag and version disagree::release $TAG, but package.json declares $declared. Correct one of them; nothing was published."
+            exit 1
+          fi
+
+      - run: uv sync --extra dev
+        working-directory: server
+
+      # The root install only: `vscode:prepublish` runs the root `esbuild`, and installs the client
+      # and the model server from their own lockfiles itself (#37). Before that change is on the
+      # released commit, the Package step fails here, and nothing is attached or published.
+      - run: npm ci
+
+      # `--out` names a directory, which it does not create, so the file keeps vsce's own name.
+      - name: Package
+        run: |
+          mkdir -p "$RUNNER_TEMP/vsix"
+          npx --yes "$VSCE" package --out "$RUNNER_TEMP/vsix/"
+
+      - name: The VSIX declares this release and carries what the extension needs to start
+        run: |
+          python3 - <<'PY'
+          import glob
+          import json
+          import os
+          import posixpath
+          import xml.etree.ElementTree as ET
+          import zipfile
+
+          vsix = glob.glob(os.path.join(os.environ["RUNNER_TEMP"], "vsix", "*.vsix"))
+          assert len(vsix) == 1, f"expected one VSIX, found {vsix}"
+          archive = zipfile.ZipFile(vsix[0])
+          names = set(archive.namelist())
+
+          with open("package.json", encoding="utf-8") as stream:
+              declared = json.load(stream)
+          manifest = ET.fromstring(archive.read("extension.vsixmanifest"))
+          identity = manifest.find(".//{http://schemas.microsoft.com/developer/vsx-schema/2011}Identity")
+          assert identity.get("Version") == declared["version"], f"the VSIX declares {identity.get('Version')}"
+          assert identity.get("Publisher") == declared["publisher"], f"the VSIX names {identity.get('Publisher')}"
+
+          entry = posixpath.join("extension", posixpath.normpath(declared["main"]))
+          assert entry in names, f"{entry} is missing, so the extension cannot activate"
+          assert "extension/model-server/dist/main.js" in names, "the model server bundle is missing"
+          with open("capabilities.json", "rb") as stream:
+              assert archive.read("extension/capabilities.json") == stream.read(), "capabilities.json differs from the root"
+          print(f"{vsix[0]}: {len(names)} files, declares {declared['version']}")
+          PY
+
+      # The suite that holds the npm tarball to account holds the VSIX too, and fails rather than
+      # skips when the model server cannot answer. Without the bundle in the checkout, so nothing
+      # can quietly fall back to it. A VSIX that does not carry the language service stops here,
+      # before anything is attached or published.
+      - name: Protocol suite against the unpacked VSIX
+        run: |
+          unzip -q "$RUNNER_TEMP"/vsix/*.vsix -d "$RUNNER_TEMP/unpacked"
+          rm -rf model-server/dist
+          uv run --project server python -m pytest tests/protocol -v -rs
+        env:
+          MODEL_SERVER_PACKAGE: ${{ runner.temp }}/unpacked/extension/model-server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix/*.vsix
+          if-no-files-found: error
+
+      # `--clobber` so that rerunning this job can succeed once the release holds the file.
+      - name: Attach the VSIX to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP"/vsix/*.vsix --clobber --repo "$GITHUB_REPOSITORY"
+
+  # No checkout and no `npm ci`: this job holds `id-token: write`, so nothing from the repository or
+  # its dependency tree runs here. `npx` still fetches vsce's own unlocked transitive dependencies.
+  publish-vsix:
+    needs: package-vsix
+    if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VSCE: "@vscode/vsce@4.1.0"
+    steps:
+      # vsce 4.1.0 declares Node 22 as its floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix
+
+      # With `--oidc`, vsce reads no stored token and does not prompt: a failed exchange stops here.
+      # The file that was checked is the file published: `--packagePath` does not rebuild.
+      # `--skip-duplicate` so that a rerun after the Marketplace accepted the upload does not fail
+      # on the version it already holds.
+      - name: Publish
+        run: npx --yes "$VSCE" publish --oidc --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"
