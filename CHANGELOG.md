@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Marketplace listing is written for users. The extension description is one sentence, the
+  manifest carries `keywords`, `homepage` and `bugs`, and the readme states what the extension does
+  and how to install it before the capability tables. Development material moved to
+  `CONTRIBUTING.md`.
 - `make install` refuses a `server/uv.lock` that is out of date rather than rewriting it.
 - The minimum VS Code version is now 1.90 (previously 1.86). VS Code 1.90 is the first release on
   Electron 29, whose Node 20 runtime is the one the model server runs on by default. VS Code 1.86

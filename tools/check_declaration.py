@@ -71,7 +71,8 @@ BLOCK_BEGIN = "<!-- capabilities:begin -->"
 BLOCK_END = "<!-- capabilities:end -->"
 
 _FIX_HINT = (
-    "run `uv run --project server python -m tools.check_declaration --fix` to regenerate it"
+    "run `uv run --frozen --extra dev --project server python -m tools.check_declaration --fix` "
+    "to regenerate it"
 )
 
 _EXECUTE_COMMAND = "workspace/executeCommand"
