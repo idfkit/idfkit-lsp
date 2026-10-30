@@ -83,7 +83,8 @@ Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpret
 environment that is not the one we guessed.
 
 The model server is also published to npm as `@idfkit/language-server`, for editors other than
-VS Code. It needs Node 18 or newer, and brings the idfkit library and its language service with it:
+VS Code. It needs Node 20 or newer, the floor of the idfkit packages it installs, and brings the
+idfkit library and its language service with it:
 
 ```bash
 npm install -g @idfkit/language-server

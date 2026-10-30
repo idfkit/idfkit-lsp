@@ -14,13 +14,11 @@ Run by CI on every change and by the release workflow before anything is publish
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
-import subprocess
 import tarfile
-import threading
 from pathlib import Path
-from typing import Any
+
+from tests.protocol.harness import ProtocolClient, ProtocolError, ServerDescription
 
 from ._common import Report, read_json, repository_root
 
@@ -58,73 +56,37 @@ def _check_tarball(root: Path, tarball: Path, report: Report) -> None:
                 )
 
 
-def _frame(message: dict[str, Any]) -> bytes:
-    body = json.dumps(message).encode("utf-8")
-    return b"Content-Length: %d\r\n\r\n" % len(body) + body
-
-
-def _read_frame(process: subprocess.Popen[bytes]) -> dict[str, Any]:
-    assert process.stdout is not None
-    header = b""
-    while not header.endswith(b"\r\n\r\n"):
-        byte = process.stdout.read(1)
-        if not byte:
-            raise RuntimeError("the server closed its output before answering")
-        header += byte
-    length = next(
-        int(line.split(b":", 1)[1])
-        for line in header.split(b"\r\n")
-        if line.lower().startswith(b"content-length:")
-    )
-    return json.loads(process.stdout.read(length))
-
-
 def _check_command(installed: Path, name: str, command: str, report: Report) -> None:
-    """Start the installed command and ask it who it is."""
+    """Start the installed command and ask it who it is.
+
+    Spoken to through the protocol suite's own client, which frames the messages, answers anything
+    the server asks first, and carries the server's standard error into the failure when it does not
+    answer: a command that crashes on start says why in that output and nowhere else.
+    """
     executable = shutil.which(command, path=str(installed / "node_modules" / ".bin"))
     if executable is None:
         report.fail(installed, f"installing the package put no {command!r} command on the path")
         return
-    process = subprocess.Popen(
-        [executable, "--stdio"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=installed,
+    client = ProtocolClient(
+        ServerDescription(name=command, command=executable, args=("--stdio",), cwd=installed)
     )
-    # A server that never answers would hang the check, so a timer ends it and the read sees EOF.
-    watchdog = threading.Timer(_STARTUP_SECONDS, process.kill)
-    watchdog.start()
     try:
-        assert process.stdin is not None
-        process.stdin.write(
-            _frame(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {"processId": None, "rootUri": None, "capabilities": {}},
-                }
-            )
-        )
-        process.stdin.flush()
-        # Notifications may arrive before the answer; the answer is the frame carrying our id.
-        while True:
-            message = _read_frame(process)
-            if message.get("id") == 1:
-                break
-        served = message.get("result", {}).get("serverInfo", {}).get("name")
-        if served != name:
-            report.fail(
-                installed,
-                f"{command} --stdio answered initialize as {served!r}, not as {name!r}",
-            )
-    except (RuntimeError, OSError, ValueError, StopIteration) as exc:
+        with client:
+            response = client.initialize(timeout=_STARTUP_SECONDS)
+    except ProtocolError as exc:
         report.fail(installed, f"{command} --stdio did not answer initialize: {exc}")
-    finally:
-        watchdog.cancel()
-        process.kill()
-        process.wait(timeout=_STARTUP_SECONDS)
+        return
+    if not response.ok:
+        report.fail(installed, f"{command} --stdio refused initialize: {response.error}")
+        return
+    result = response.result if isinstance(response.result, dict) else {}
+    info = result.get("serverInfo")
+    served = info.get("name") if isinstance(info, dict) else None
+    if served != name:
+        report.fail(
+            installed,
+            f"{command} --stdio answered initialize as {served!r}, not as {name!r}",
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

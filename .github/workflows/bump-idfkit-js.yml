@@ -2,17 +2,17 @@ name: Bump idfkit-js
 
 # Adopt a newly published release of the second language for the model server, as a pull request.
 #
-# The model server resolves @idfkit/core and @idfkit/language, and idfkit-js has never had a
-# downstream half: until feature 004 of the unification, a second-language release reached this
-# repository only when somebody remembered it. idfkit-js's notify-downstream.yml now dispatches this,
-# in the wave order the consumer register (governance/consumers.toml in idfkit-conformance) gives it.
+# The model server resolves @idfkit/idfkit, @idfkit/core and @idfkit/language, and idfkit-js has
+# never had a downstream half: until feature 004 of the unification, a second-language release
+# reached this repository only when somebody remembered it. idfkit-js's notify-downstream.yml now
+# dispatches this, in the wave order the consumer register (governance/consumers.toml in
+# idfkit-conformance) gives it.
 #
 # ONE RELEASE, ONE LEVEL. Every governed package model-server/package.json depends on moves to the
 # same version in one change, through tools/adoption.py in idfkit-conformance, because the second
 # language publishes all of its packages at one version and a manifest holding two releases is half
-# adopted (FR-039). The optional peer on the shared name is left alone: it states what may be
-# installed beside the server, and moving it would publish a requirement. This repository comes
-# through the scoped packages, which are a supported entry point; nothing here migrates it (FR-044).
+# adopted (FR-039). The shared name, @idfkit/idfkit, is an exact dependency like the scoped packages
+# beside it, so it moves with them; the model server reaches the library only through it.
 #
 # The first language is adopted by bump-idfkit.yml, independently: neither waits on the other (FR-021).
 # The statement, register and decline steps are the same as there, for the javascript Resolution.
@@ -221,13 +221,13 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            @idfkit/core and @idfkit/language were bumped to ${{ steps.ver.outputs.version }} (in model-server/package.json), and the gate failed.
+            @idfkit/idfkit, @idfkit/core and @idfkit/language were bumped to ${{ steps.ver.outputs.version }} (in model-server/package.json), and the gate failed.
             Task:
             - Read the failure output at ${{ runner.temp }}/bump-test-output.txt.
             - Diagnose the compatibility issue caused by the upgrade.
             - Make the minimal code changes required.
             - If the failure is in tools/check_levels.py, the declared level in levels.json and the pin disagree; fix the declaration rather than the check.
-            - Do not refactor unrelated code, and do not move the model server to the shared install name.
+            - Do not refactor unrelated code, and do not reach the library under the component names: the model server resolves it only through @idfkit/idfkit and its subpaths.
             - Rerun: make check (from the repository root)
             - Leave a concise summary of root cause, changed files, and final test result.
       - name: Rerun the gate after Claude repair

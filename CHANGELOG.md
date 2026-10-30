@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The model server is published to npm as `@idfkit/language-server`, so an editor other than VS Code
   can install it without cloning this repository. Installing it puts `idfkit-language-server` on
   the path; run it with `--stdio`. The package carries its own copy of `capabilities.json`, made
-  from the root file on every build. Releases publish it beside the PyPI package, from the same
-  tag (#33).
+  from the root file each time it is packed. Releases publish it beside the PyPI package, from the
+  same tag (#33).
 
 ### Changed
 

@@ -252,7 +252,7 @@ def model_server_description(candidate_builds: CandidateBuilds) -> ServerDescrip
     """
     node = shutil.which("node")
     if node is None:
-        pytest.skip("no node runtime is on PATH, so the model server cannot be started")
+        _skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
     if not _model_bundle().is_file():
         _skip_or_fail(f"the model server cannot be started: {_missing_bundle()}")
     return _model_description(node, candidate_builds)
@@ -274,12 +274,14 @@ def model_server(candidate_builds: CandidateBuilds) -> Iterator[ProtocolClient]:
 
     Two things must be present and the skip names whichever is not, both of them when both are:
     the bundle this repository builds, and the language service that bundle reads every answer
-    from. Neither absence is a failure, because neither is this repository being wrong; the
-    component is feature 005 of the unification and is not published yet.
+    from. In a checkout neither absence is a failure, because neither is this repository being
+    wrong: the bundle is built by ``make build`` and the component by ``npm ci``. Against an
+    installed package (``MODEL_SERVER_PACKAGE``) both are the package's to carry, so either
+    absence fails instead.
     """
     node = shutil.which("node")
     if node is None:
-        pytest.skip("no node runtime is on PATH, so the model server cannot be started")
+        _skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
     description = _model_description(node, candidate_builds)
     missing: list[str] = []
     if not _model_bundle().is_file():

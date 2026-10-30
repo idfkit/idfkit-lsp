@@ -208,7 +208,8 @@ jobs:
       - run: npm ci
         working-directory: model-server
 
-      # `npm pack` runs `prepack`, which builds the bundle and copies the licence in.
+      # `npm pack` runs `prepack`, which builds the bundle and copies the declaration and the
+      # licence in, and `postpack`, which takes both copies out of the checkout again.
       # `--pack-destination` does not create the directory it names.
       - name: Pack
         run: |

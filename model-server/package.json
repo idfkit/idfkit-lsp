@@ -23,10 +23,11 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap && node -e \"require('node:fs').copyFileSync('../capabilities.json', 'dist/capabilities.json')\"",
+    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node18 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepack": "npm run build && node -e \"require('node:fs').copyFileSync('../LICENSE', 'LICENSE')\""
+    "prepack": "npm run build && node -e \"const fs = require('node:fs'); fs.copyFileSync('../capabilities.json', 'dist/capabilities.json'); fs.copyFileSync('../LICENSE', 'LICENSE')\"",
+    "postpack": "node -e \"const fs = require('node:fs'); fs.rmSync('dist/capabilities.json', { force: true }); fs.rmSync('LICENSE', { force: true })\""
   },
   "dependencies": {
     "@idfkit/core": "0.4.0",

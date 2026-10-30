@@ -127,13 +127,14 @@ export function loadDeclaration(path?: string): CapabilityDeclaration {
  * The root declaration, found by walking up from this module rather than from the cwd.
  *
  * Three layouts must all resolve. Under vitest and `tsc` this file sits at
- * `model-server/src/capabilities.ts`, three levels below the repository root. A build copies the
- * root declaration beside the bundle, as `dist/capabilities.json`, because the npm package
- * `@idfkit/language-server` ships `dist/` and nothing above it; the walk finds that copy first, and
- * the copy is made from the root file on every build, so it is not a second record. In a packaged
- * extension the same `dist/` ships with the root declaration kept above it (see `.vscodeignore`).
- * Resolving from the working directory would break all three, since an editor launches a server
- * from wherever it pleases.
+ * `model-server/src/capabilities.ts`, three levels below the repository root. The npm package
+ * `@idfkit/language-server` ships `dist/` and nothing above it, so `npm pack` copies the root
+ * declaration beside the bundle, as `dist/capabilities.json`, and removes it again once the tarball
+ * is written; the walk finds that copy first in an installed package. Only packing makes the copy,
+ * never a build, so a checkout and a packaged extension carry no copy that could fall behind the
+ * root file and are read from the root itself, kept above `dist/` in an extension (see
+ * `.vscodeignore`). Resolving from the working directory would break all three, since an editor
+ * launches a server from wherever it pleases.
  */
 function defaultDeclarationPath(): string {
   const here = dirname(fileURLToPath(import.meta.url));

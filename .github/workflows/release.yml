@@ -112,7 +112,8 @@ jobs:
       - run: npm ci
         working-directory: model-server
 
-      # `npm pack` runs `prepack`, which builds the bundle and copies the licence in.
+      # `npm pack` runs `prepack`, which builds the bundle and copies the declaration and the
+      # licence in, and `postpack`, which takes both copies out of the checkout again.
       # `--pack-destination` does not create the directory it names.
       - name: Pack
         run: |
@@ -134,5 +135,13 @@ jobs:
           --tarball "$(ls "$RUNNER_TEMP"/pack/*.tgz)"
           --installed "$RUNNER_TEMP/consumer"
 
+      # A prerelease goes to `next`, never to `latest`: npm hands `latest` to every
+      # `npm install -g @idfkit/language-server` and `npx` that names no version.
       - name: Publish
-        run: npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public
+        run: |
+          declared=$(node -p 'require("./model-server/package.json").version')
+          case "$declared" in
+            *-*) tag=next ;;
+            *) tag=latest ;;
+          esac
+          npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public --tag "$tag"
