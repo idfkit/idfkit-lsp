@@ -202,12 +202,10 @@ jobs:
       - run: uv sync --extra dev
         working-directory: server
 
-      # `vscode:prepublish` builds the client and the model server, each from its own dependencies.
-      - name: Install what the build needs
-        run: |
-          npm ci
-          npm ci --prefix client
-          npm ci --prefix model-server
+      # The root install only: `vscode:prepublish` runs the root `esbuild`, and installs the client
+      # and the model server from their own lockfiles itself (#37). Before that change is on the
+      # released commit, the Package step fails here, and nothing is attached or published.
+      - run: npm ci
 
       # `--out` names a directory, which it does not create, so the file keeps vsce's own name.
       - name: Package
@@ -266,6 +264,8 @@ jobs:
 
       # Refused here by name: with an empty VSCE_PAT, vsce falls through to prompting for a token.
       # The file that was checked is the file published: `--packagePath` does not rebuild.
+      # `--skip-duplicate` so that a rerun after the Marketplace accepted the upload does not fail
+      # on the version it already holds.
       - name: Publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -274,4 +274,4 @@ jobs:
             echo "::error title=No Marketplace token::the repository secret VSCE_PAT is not set; see the prerequisite at the top of release.yml. Nothing was published to the Marketplace."
             exit 1
           fi
-          npx --yes "$VSCE" publish --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"
+          npx --yes "$VSCE" publish --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"
