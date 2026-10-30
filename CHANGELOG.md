@@ -13,8 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   installs the root and client dependencies as well. `@vscode/vsce` is an exact-pinned development
   dependency.
 - The `vsix` CI job builds the extension, unzips it outside the checkout, and fails if its model
-  server does not advertise what `capabilities.json` marks present. `tools/check_vsix.py` performs
-  the check, and the protocol suite then runs against the packaged server.
+  server does not advertise what `capabilities.json` marks present or warns on start.
+  `tools/check_vsix.py` performs the check, and the protocol suite then runs against the packaged
+  server.
+- CI type-checks the client in a job of its own, and runs the protocol suite on Node 20.9.0.
+
+### Changed
+
+- `make install` refuses a `server/uv.lock` that is out of date rather than rewriting it.
 
 ## [0.4.0] - 2026-10-30
 

@@ -9,7 +9,7 @@ VSIX ?= idfkit-lsp.vsix
 
 .PHONY: install
 install: ## Install both runtimes, the client and the packaging tools, at their locked levels
-	cd $(SERVER_DIR) && uv sync --extra dev
+	cd $(SERVER_DIR) && uv sync --locked --extra dev
 	npm ci
 	cd $(CLIENT_DIR) && npm ci
 	cd $(MODEL_SERVER_DIR) && npm ci

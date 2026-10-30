@@ -74,10 +74,10 @@ def _tree(tmp_path: Path, *, providers: tuple[str, ...] = ALL_PROVIDERS, guard: 
     root.mkdir()
     declaration = (repository_root() / DECLARATION).read_bytes()
     (root / DECLARATION).write_bytes(declaration)
-    (root / MANIFEST).write_text(json.dumps({"main": f"./{CLIENT_ENTRY}"}), encoding="utf-8")
 
     extension = tmp_path / "unpacked" / "extension"
     (extension / "client" / "dist").mkdir(parents=True)
+    (extension / MANIFEST).write_text(json.dumps({"main": f"./{CLIENT_ENTRY}"}), encoding="utf-8")
     (extension / CLIENT_ENTRY).write_text("", encoding="utf-8")
     (extension / DECLARATION).write_bytes(declaration)
     (extension / BUNDLE).parent.mkdir(parents=True)
@@ -138,13 +138,32 @@ def test_an_inherited_node_path_does_not_reach_the_server(
     assert _failures(_tree(tmp_path)) == []
 
 
-@pytest.mark.parametrize("missing", [BUNDLE, CLIENT_ENTRY, DECLARATION])
+@needs_node
+def test_a_server_that_warns_on_start_fails_though_it_advertises_everything(
+    tmp_path: Path,
+) -> None:
+    failures = _failures(_tree(tmp_path, guard=GUARD_MESSAGE))
+    assert len(failures) == 1
+    assert GUARD_MESSAGE in failures[0]
+
+
+@pytest.mark.parametrize("missing", [BUNDLE, CLIENT_ENTRY, DECLARATION, MANIFEST])
 def test_a_missing_file_fails_without_starting_anything(tmp_path: Path, missing: str) -> None:
     tree = _tree(tmp_path)
     (tree.extension / missing).unlink()
     failures = _failures(tree)
     assert len(failures) == 1
     assert missing in failures[0]
+
+
+def test_the_entry_point_is_read_from_the_packaged_manifest(tmp_path: Path) -> None:
+    tree = _tree(tmp_path)
+    (tree.extension / MANIFEST).write_text(
+        json.dumps({"main": "./elsewhere.js"}), encoding="utf-8"
+    )
+    failures = _failures(tree)
+    assert len(failures) == 1
+    assert "elsewhere.js" in failures[0]
 
 
 def test_a_stale_declaration_fails(tmp_path: Path) -> None:
@@ -179,6 +198,15 @@ def _advertisement_failures(declared: set[str], providers: tuple[str, ...]) -> l
         frozenset(declared), dict.fromkeys(providers, True), report, "extension", None
     )
     return report.failures
+
+
+def test_an_empty_options_object_counts_as_advertised() -> None:
+    report = Report("test")
+    declared = frozenset(MODEL_PROVIDERS) - {"textDocument/hover"}
+    advertised = {provider: {} for provider in ALL_PROVIDERS}
+    check_advertisement(declared, advertised, report, "extension", None)
+    assert len(report.failures) == 1
+    assert "advertises textDocument/hover" in report.failures[0]
 
 
 def test_a_server_advertising_beyond_the_declaration_fails() -> None:

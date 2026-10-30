@@ -151,13 +151,13 @@ by trusted publishing, prereleases under `next`.
 
 ## CI
 
-`.github/workflows/ci.yml`: lint, typecheck (both languages), the three declaration checks, the
-source server across Python 3.10 to 3.13, the model server, the protocol suite on Linux and
-Windows, and the protocol suite again against the packed npm tarball and against the packaged
+`.github/workflows/ci.yml`: lint, typecheck (both languages, and the client in a job of its own,
+outside `make check`), the three declaration checks, the source server across Python 3.10 to 3.13,
+the model server, the protocol suite on Linux and Windows on Node 20.9.0, and the protocol suite again against the packed npm tarball and against the packaged
 VSIX. The `vsix` job runs `make install` and `make package`, unzips the VSIX outside the checkout,
 and runs `tools/check_vsix.py`, which fails if the packaged model server does not advertise what
-`capabilities.json` marks present. Pre-commit runs ruff,
-pyright, and the three checks.
+`capabilities.json` marks present or warns on start. Pre-commit runs ruff, pyright, and the three
+checks.
 
 ## The consumer register
 

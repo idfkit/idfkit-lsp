@@ -71,6 +71,24 @@ jobs:
       - run: npm run typecheck
         working-directory: model-server
 
+  # A job of its own rather than a step of `make typecheck`: the bump workflows run `make check`
+  # and install only the model server's npm dependencies.
+  typecheck-client:
+    name: Type Check (client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+        working-directory: client
+
+      - run: npx --no-install tsc -p . --noEmit
+        working-directory: client
+
   declaration:
     name: Capability declaration
     runs-on: ubuntu-latest
@@ -166,9 +184,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "server/uv.lock"
 
+      # The oldest Node the model server is run on, so a library or a bundle that needs a newer one
+      # fails here rather than in an editor.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "20.9.0"
 
       - run: uv python install ${{ matrix.python-version }}
 

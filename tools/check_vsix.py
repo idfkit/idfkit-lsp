@@ -10,8 +10,9 @@ the unpacked extension, the way the client starts it, and holds what it advertis
 
 ``<unpacked>`` is where the VSIX was unzipped, and it must lie outside this repository. A server that
 cannot load the language service still starts and answers ``initialize``, but advertises none of the
-model-text answers, so the comparison is what detects a VSIX without the language service. Run by CI
-on every change.
+model-text answers, so the comparison is what detects a VSIX without the language service. A server
+that advertises them all but warns on start cannot resolve what they are answered from, and fails
+too. Run by CI on every change.
 """
 
 from __future__ import annotations
@@ -46,10 +47,11 @@ MODEL_PROVIDERS: Mapping[str, str] = {
 
 # Requests the declaration can mark present that `initialize` has no entry for. Anything else without
 # a provider above fails the check, so the table cannot fall behind the declaration unnoticed.
-_ANNOUNCED_NOWHERE = frozenset({"textDocument/publishDiagnostics", "idfkit-lsp/versions"})
+_VERSIONS_REQUEST = "idfkit-lsp/versions"
+_ANNOUNCED_NOWHERE = frozenset({"textDocument/publishDiagnostics", _VERSIONS_REQUEST})
 
+_SHOW_MESSAGE = "window/showMessage"
 _STARTUP_SECONDS = 30.0
-_GUARD_MESSAGE_SECONDS = 5.0
 
 
 def _check_location(root: Path, extension: Path, report: Report) -> None:
@@ -70,9 +72,13 @@ def _check_location(root: Path, extension: Path, report: Report) -> None:
 
 
 def _check_files(root: Path, extension: Path, report: Report) -> None:
-    """The files the client reads at activation, each at the path it reads it from."""
-    manifest = read_json(root / MANIFEST)
-    for relative in (str(manifest["main"]), BUNDLE):
+    """The files the editor and the client read at activation, each at the path it is read from."""
+    required = [BUNDLE]
+    if (extension / MANIFEST).is_file():
+        required.append(str(read_json(extension / MANIFEST)["main"]))
+    else:
+        report.fail(extension, f"the VSIX does not carry {MANIFEST}")
+    for relative in required:
         if not (extension / relative).is_file():
             report.fail(extension, f"the VSIX does not carry {relative}")
     packaged = extension / DECLARATION
@@ -86,12 +92,17 @@ def _check_files(root: Path, extension: Path, report: Report) -> None:
         )
 
 
+def _is_advertised(advertised: Mapping[str, Any], provider: str) -> bool:
+    """Whether a provider is announced. The protocol's empty options object ``{}`` announces it."""
+    return advertised.get(provider) not in (None, False)
+
+
 def unadvertised(declared: frozenset[str], advertised: Mapping[str, Any]) -> list[str]:
     """The model-text answers the declaration marks present that the server did not advertise."""
     return sorted(
         request
         for request, provider in MODEL_PROVIDERS.items()
-        if request in declared and not advertised.get(provider)
+        if request in declared and not _is_advertised(advertised, provider)
     )
 
 
@@ -121,7 +132,7 @@ def check_advertisement(
             f"cannot load the language service, so the VSIX may not carry it.{detail}",
         )
     for request, provider in sorted(MODEL_PROVIDERS.items()):
-        if request not in declared and advertised.get(provider):
+        if request not in declared and _is_advertised(advertised, provider):
             report.fail(
                 where,
                 f"the packaged model server advertises {request}, which {DECLARATION} does not "
@@ -129,18 +140,24 @@ def check_advertisement(
             )
 
 
-def _guard_message(client: ProtocolClient) -> str | None:
-    """What the server told the user about the absence, which names the cause when there is one."""
-    client.initialized()
+def _startup_warnings(client: ProtocolClient, report: Report, where: Path) -> list[str]:
+    """What the server told the user as it started, which names the cause of any absence.
+
+    The server warns while handling ``initialized`` and handles messages in order, so the answer to
+    a request sent after it means every warning has already arrived.
+    """
     try:
-        notification = client.await_notification(
-            "window/showMessage", timeout=_GUARD_MESSAGE_SECONDS
-        )
-    except ProtocolError:
-        return None
-    params = notification.params
-    message = params.get("message") if isinstance(params, dict) else None
-    return message if isinstance(message, str) else None
+        client.initialized()
+        client.request(_VERSIONS_REQUEST, timeout=_STARTUP_SECONDS)
+    except ProtocolError as exc:
+        report.fail(where, f"the server answered initialize and then stopped answering: {exc}")
+    warnings: list[str] = []
+    for notification in client.received_notifications:
+        params = notification.params
+        message = params.get("message") if isinstance(params, dict) else None
+        if notification.method == _SHOW_MESSAGE and isinstance(message, str):
+            warnings.append(message)
+    return warnings
 
 
 def _check_server(root: Path, extension: Path, report: Report) -> None:
@@ -168,11 +185,18 @@ def _check_server(root: Path, extension: Path, report: Report) -> None:
                 report.fail(extension, f"the server refused initialize: {response.error}")
                 return
             advertised = client.server_capabilities
-            guard = _guard_message(client) if unadvertised(declared, advertised) else None
+            warnings = _startup_warnings(client, report, extension)
     except ProtocolError as exc:
         report.fail(extension, f"the server did not answer initialize: {exc}")
         return
-    check_advertisement(declared, advertised, report, extension, guard)
+    said = "\n".join(warnings)
+    check_advertisement(declared, advertised, report, extension, said or None)
+    if said and not unadvertised(declared, advertised):
+        report.fail(
+            extension,
+            "the packaged model server advertises every declared answer but warned on start, so "
+            f"it cannot give them. The server said: {said}",
+        )
 
 
 def check_extension(root: Path, extension: Path) -> Report:
