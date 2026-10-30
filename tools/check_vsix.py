@@ -26,7 +26,7 @@ from tests.protocol.harness import ProtocolClient, ProtocolError, ServerDescript
 
 from idfkit_lsp.capabilities import load
 
-from ._common import Report, read_json, repository_root
+from ._common import Report, has_source_map_comment, read_json, repository_root
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -81,6 +81,8 @@ def _check_files(root: Path, extension: Path, report: Report) -> None:
     for relative in required:
         if not (extension / relative).is_file():
             report.fail(extension, f"the VSIX does not carry {relative}")
+        elif has_source_map_comment((extension / relative).read_bytes()):
+            report.fail(extension, f"{relative} names a source map the VSIX does not carry")
     packaged = extension / DECLARATION
     if not packaged.is_file():
         report.fail(extension, f"the VSIX does not carry {DECLARATION}")

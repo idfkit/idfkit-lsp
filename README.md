@@ -175,8 +175,10 @@ Ask either server what it is running:
 idfkit-lsp/versions
 ```
 
-It reports its own version and the resolved level of every library it imports, read from the
-installed distribution rather than from a literal.
+It reports its own version and the level of every library it imports, never from a literal. A
+library resolved at run time reports the level read from its installed distribution. A library
+compiled into the model server's bundle reports the level read from its manifest when the bundle was
+built, because that is the code running.
 
 ## Contributing
 

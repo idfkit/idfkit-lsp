@@ -34,14 +34,17 @@ from __future__ import annotations
 import bisect
 import contextlib
 import json
+import shutil
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from tools._common import read_json
+from tools.check_levels import declared_libraries
 
 from .harness import ProtocolClient, ProtocolTimeout, start_server
 
@@ -50,6 +53,7 @@ if TYPE_CHECKING:
 
     from idfkit_lsp.capabilities import DocumentKind, ServerDeclaration
 
+    from .conftest import CandidateBuilds
     from .harness import ServerDescription
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -981,6 +985,66 @@ class TestAnswers:
                 "a range over text outside the basic plane selects the wrong characters: "
                 + "; ".join(repr(sample.select(span)) for span in declarations)
             )
+
+
+# ---------------------------------------------------------------------------
+# What the version request states, in every layout the bundle ships in
+# ---------------------------------------------------------------------------
+
+
+def _declared_levels() -> dict[str, str]:
+    """The level ``levels.json`` declares for each library, which the answer is held against."""
+    record = read_json(REPOSITORY_ROOT / "levels.json")
+    return {library.lookup_name: library.level for library in declared_libraries(record)}
+
+
+def _reported_levels(client: ProtocolClient) -> dict[str, str | None]:
+    report = client.request(_VERSIONS_REQUEST).unwrap()
+    return {library["name"]: library["level"] for library in report["libraries"]}
+
+
+class TestVersions:
+    """Every level stated is the level running, whichever layout the server was started from."""
+
+    def test_every_library_reports_the_level_this_repository_declares(
+        self, model_server: ProtocolClient, candidate_builds: CandidateBuilds
+    ) -> None:
+        """Run against a VSIX or an npm install through ``MODEL_SERVER_PACKAGE`` as well."""
+        if candidate_builds.second is not None:
+            pytest.skip("a candidate build reports its own level, not the declared one")
+        reported = _reported_levels(model_server)
+
+        assert reported, "the server reported no library"
+        declared = _declared_levels()
+        assert reported == {name: declared[name] for name in reported}
+
+    def test_a_compiled_in_library_reports_its_level_with_no_manifest_to_read(
+        self, model_server_description: ServerDescription, tmp_path: Path
+    ) -> None:
+        """The bundle alone, so nothing but what was compiled into it can supply a level."""
+        package = Path(model_server_description.cwd or "")
+        extension = tmp_path / "extension"
+        bundle = extension / "model-server" / "dist" / "main.js"
+        bundle.parent.mkdir(parents=True)
+        shutil.copy(model_server_description.args[0], bundle)
+        shutil.copy(package / "package.json", bundle.parent.parent / "package.json")
+        shutil.copy(REPOSITORY_ROOT / "capabilities.json", extension / "capabilities.json")
+        alone = replace(
+            model_server_description,
+            args=(str(bundle), *model_server_description.args[1:]),
+            cwd=bundle.parent.parent,
+            env={"NODE_PATH": ""},
+        )
+
+        with _started(alone) as model:
+            reported = _reported_levels(model)
+
+        declared = _declared_levels()
+        compiled_in = [name for name in reported if not name.startswith("@idfkit/")]
+        assert compiled_in, "the report names no library compiled into the bundle"
+        assert {name: reported[name] for name in compiled_in} == {
+            name: declared[name] for name in compiled_in
+        }
 
 
 # ---------------------------------------------------------------------------

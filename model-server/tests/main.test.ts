@@ -224,6 +224,22 @@ describe('the levels this server reports', () => {
     expect(unresolvable.libraries.length).toBeGreaterThan(0);
     for (const library of unresolvable.libraries) expect(library.level).toBeNull();
   });
+
+  it('reports the level compiled into the bundle, whatever resolves here', () => {
+    const [compiledIn, ...others] = report.libraries.map((library) => library.name);
+    const bundled = versionReport(
+      model.id,
+      undefined,
+      (id: string) => {
+        throw new Error(`Cannot find module '${id}'`);
+      },
+      { [String(compiledIn)]: '0.0.0-compiled-in' },
+    );
+
+    expect(bundled.libraries[0]?.level).toBe('0.0.0-compiled-in');
+    expect(others.length).toBeGreaterThan(0);
+    for (const library of bundled.libraries.slice(1)) expect(library.level).toBeNull();
+  });
 });
 
 describe('an answer the editor has moved past', () => {
