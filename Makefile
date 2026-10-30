@@ -74,11 +74,13 @@ test-model: ## Run the model server's unit tests
 	cd $(MODEL_SERVER_DIR) && npm test
 
 .PHONY: test-protocol
-test-protocol: ## Drive both servers over the protocol, with no editor
-	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tests/protocol $(ARGS)
+test-protocol: export REQUIRE_FULL_SUITE := 1
+test-protocol: build-model ## Drive both servers over the protocol, with no editor, skipping neither
+	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tests/protocol -rs $(ARGS)
 
 .PHONY: bench-protocol
-bench-protocol: ## Measure an answer at a cursor at the protocol boundary
+bench-protocol: export REQUIRE_FULL_SUITE := 1
+bench-protocol: build-model ## Measure an answer at a cursor at the protocol boundary
 	cd $(SERVER_DIR) && uv run --frozen --extra dev pytest ../tests/protocol/test_budget.py -v -s $(ARGS)
 
 # ── Combined ─────────────────────────────────────────────────────────────
@@ -92,8 +94,13 @@ fix: lint-fix format-fix ## Auto-fix lint and format issues
 # ── Build ────────────────────────────────────────────────────────────────
 
 .PHONY: build
-build: ## Bundle the client and the model server
+build: build-model ## Bundle the client and the model server
 	npm run compile
+
+# A target of its own because the gate needs it: the bump workflows run `make check` and install only
+# the model server's npm dependencies, so the gate cannot build the client.
+.PHONY: build-model
+build-model: ## Bundle the model server
 	cd $(MODEL_SERVER_DIR) && npm run build
 
 .PHONY: package

@@ -51,6 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `make check` can no longer pass with the model server's protocol tests skipped. `make test-protocol`
+  builds the model server first and sets `REQUIRE_FULL_SUITE`, which `ci.yml` also sets, so that a
+  missing bundle, runtime or language service fails the run. A direct `pytest` run from a checkout
+  still skips and names what is missing.
+- The protocol suite's check that the model server publishes diagnostics no longer depends on test
+  order. It accepted a message about any earlier test's document, so it passed in the full suite and
+  failed alone. It now waits for a message about its own document, and a new test requires published
+  findings to select the offending value.
 - The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
   contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
   advertised no model text capability. The prepublish step now installs the locked dependencies of

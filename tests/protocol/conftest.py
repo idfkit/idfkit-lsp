@@ -31,6 +31,14 @@ VSIX (``<unpacked>/extension/model-server``). The model server is then started f
 bundle and resolves its libraries from there, not from this checkout, which is what a user of the
 npm package or the extension runs. A packaged server that cannot answer is a broken package rather
 than a missing component, so where the model server would otherwise be skipped it fails instead.
+
+**A run that must be complete.** ``REQUIRE_FULL_SUITE`` turns every skip that stands for something
+missing into a failure, whichever server it concerns. ``make test-protocol`` sets it, and so does
+``ci.yml``, so that a passing gate shows these tests ran. A direct ``pytest`` run from a checkout
+leaves it unset and keeps the skip, which names what is missing: running one source server test
+should not require a bundle. The variable is named rather than inferred from ``CI``, so that each
+caller states the requirement and running in continuous integration does not imply it. A skip for a
+capability the declaration records as absent is not something missing, and it stays a skip.
 """
 
 from __future__ import annotations
@@ -58,6 +66,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CANDIDATE_FIRST = "CANDIDATE_FIRST"
 CANDIDATE_SECOND = "CANDIDATE_SECOND"
 MODEL_SERVER_PACKAGE = "MODEL_SERVER_PACKAGE"
+REQUIRE_FULL_SUITE = "REQUIRE_FULL_SUITE"
 
 _SUBPATH = "@idfkit/idfkit/language"
 _PROBE_TIMEOUT = 60.0
@@ -198,7 +207,7 @@ def _missing_bundle() -> str:
         return f"the packaged server has no bundle at {_model_bundle()}"
     return (
         f"the bundle {_model_bundle().relative_to(REPOSITORY_ROOT)} has not been built "
-        "(make build)"
+        "(make build-model)"
     )
 
 
@@ -215,12 +224,12 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
     ]
 
 
-def _skip_or_fail(reason: str) -> NoReturn:
-    """Skip in a checkout, where an absence is not this repository being wrong; fail when packed."""
+def skip_or_fail(reason: str) -> NoReturn:
+    """Skip in a direct run from a checkout; fail in a run that has to be complete."""
     if _directory(MODEL_SERVER_PACKAGE) is not None:
-        pytest.fail(
-            f"{MODEL_SERVER_PACKAGE} is set, so this is a packaged server failing: {reason}"
-        )
+        pytest.fail(f"{MODEL_SERVER_PACKAGE} is set, so this is a packaged run failing: {reason}")
+    if os.environ.get(REQUIRE_FULL_SUITE, "").strip():
+        pytest.fail(f"{REQUIRE_FULL_SUITE} is set, so nothing may be skipped: {reason}")
     pytest.skip(reason)
 
 
@@ -253,9 +262,9 @@ def model_server_description(candidate_builds: CandidateBuilds) -> ServerDescrip
     """
     node = shutil.which("node")
     if node is None:
-        _skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
+        skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
     if not _model_bundle().is_file():
-        _skip_or_fail(f"the model server cannot be started: {_missing_bundle()}")
+        skip_or_fail(f"the model server cannot be started: {_missing_bundle()}")
     return _model_description(node, candidate_builds)
 
 
@@ -271,18 +280,19 @@ def source_server(source_server_description: ServerDescription) -> Iterator[Prot
 
 @pytest.fixture(scope="session")
 def model_server(candidate_builds: CandidateBuilds) -> Iterator[ProtocolClient]:
-    """A started, initialized model server, skipped while it has nothing to answer from.
+    """A started, initialized model server, which needs something to answer from.
 
-    Two things must be present and the skip names whichever is not, both of them when both are:
+    Two things must be present and the message names whichever is not, both of them when both are:
     the bundle this repository builds, and the language service that bundle reads every answer
-    from. In a checkout neither absence is a failure, because neither is this repository being
-    wrong: the bundle is built by ``make build`` and the component by ``npm ci``. Against an
-    installed package (``MODEL_SERVER_PACKAGE``) both are the package's to carry, so either
-    absence fails instead.
+    from. In a direct run from a checkout neither absence is a failure, because neither is this
+    repository being wrong: the bundle is built by ``make build-model`` and the component by
+    ``npm ci``. Against an installed package (``MODEL_SERVER_PACKAGE``) both are the package's to
+    carry, and under ``REQUIRE_FULL_SUITE`` a skip would make the pass mean less, so in both of
+    those either absence fails instead.
     """
     node = shutil.which("node")
     if node is None:
-        _skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
+        skip_or_fail("no node runtime is on PATH, so the model server cannot be started")
     description = _model_description(node, candidate_builds)
     missing: list[str] = []
     if not _model_bundle().is_file():
@@ -291,7 +301,7 @@ def model_server(candidate_builds: CandidateBuilds) -> Iterator[ProtocolClient]:
     if not probe.resolved:
         missing.append(_missing_component(probe))
     if missing:
-        _skip_or_fail("the model server cannot answer yet: " + "; and ".join(missing))
+        skip_or_fail("the model server cannot answer yet: " + "; and ".join(missing))
     client = start_server(description)
     try:
         yield client
@@ -304,16 +314,16 @@ def declaration() -> Any:
     """The capability declaration, loaded by the loader the servers themselves read it with.
 
     Imported inside the fixture so that collection succeeds while the loader is still being
-    written, and so that its absence reads as a skip naming the loader rather than an error
-    naming this file.
+    written, and so that its absence reads as a skip or, in a run that must be complete, a failure
+    naming the loader rather than an error naming this file.
     """
     try:
         from idfkit_lsp import capabilities as loader
     except ImportError as exc:
-        pytest.skip(f"idfkit_lsp.capabilities is not available yet: {exc}")
+        skip_or_fail(f"idfkit_lsp.capabilities is not available yet: {exc}")
     load = getattr(loader, "load", None)
     if not callable(load):
-        pytest.skip("idfkit_lsp.capabilities has no load() yet")
+        skip_or_fail("idfkit_lsp.capabilities has no load() yet")
     if inspect.signature(load).parameters:
         return load(REPOSITORY_ROOT / "capabilities.json")
     return load()

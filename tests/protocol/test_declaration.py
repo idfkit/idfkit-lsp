@@ -22,8 +22,10 @@ matters for the command request, where naming an undefined command is the only w
 handle this method" without also asking a command to run.
 
 **One request is never asked.** Published diagnostics travel from server to client, so a client
-never requests them. Its presence is observed the only way it can be: by opening a document and
-seeing whether anything arrives.
+never requests them. Its presence is observed by closing a document the server holds and seeing
+whether a message about that document arrives. A blank document has no findings, so this shows that
+the delivery exists and not what it delivers. ``test_model_server.py`` asserts the published
+findings, and ``test_source_server.py`` asserts that nothing is published about real source.
 
 The probing helpers here are also used by ``test_no_client.py``, which asks the same question for a
 different reason.
@@ -61,7 +63,7 @@ _UNDEFINED_COMMAND = "idfkit-lsp/protocol-suite/no-such-command"
 _PROBE_TIMEOUT = 10.0
 
 # How long to wait before concluding a server sent nothing unprompted. Long enough that a server
-# doing work on an opened document is not mistaken for a server with nothing to say.
+# still handling the close is not mistaken for a server with nothing to say.
 _QUIET_SECONDS = 2.0
 
 # Which advertised provider names which request. Protocol knowledge, and deliberately partial: a
@@ -157,10 +159,19 @@ def ask(client: ProtocolClient, request: str, document: ProbeDocument) -> Answer
     """Probe one request against one server, without assuming what the answer should be."""
     shape = shape_of(request)
     if shape is RequestShape.UNPROMPTED:
+        # The probe's blank text gives a server nothing to find, so opening it provokes nothing:
+        # the model server publishes only once the text names a version it can read a schema for.
+        # Closing a document it holds does provoke a message, the one taking back what it published,
+        # and that needs no model text in this file. The wait is for this document alone, because
+        # the server is shared by the session and a message about another test's document is no
+        # evidence about this probe. Reopening keeps the probes after this one on an open document.
+        client.did_close(document.uri)
         try:
-            client.await_notification(request, timeout=_QUIET_SECONDS)
+            client.await_notification(request, timeout=_QUIET_SECONDS, uri=document.uri)
         except ProtocolTimeout:
             return Answer(request, False, f"nothing arrived in {_QUIET_SECONDS:g}s")
+        finally:
+            client.did_open(document.uri, document.language_id, document.text)
         return Answer(request, True, "the server sent it unprompted")
 
     if shape is RequestShape.A_COMMAND:
