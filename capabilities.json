@@ -84,7 +84,7 @@
     },
     {
       "id": "model",
-      "runtime": "Node 18 or newer, ESM, launched on the editor's own runtime",
+      "runtime": "Node 20 or newer, ESM, launched on the editor's own runtime",
       "documents": [
         {
           "language_id": "idf",

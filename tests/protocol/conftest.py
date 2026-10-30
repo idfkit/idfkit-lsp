@@ -24,12 +24,13 @@ asks for and what research R8 records:
 Neither variable is set in ordinary use, and the header says so plainly rather than letting a run
 against the published levels pass for a run against a candidate.
 
-**The packed model server.** ``MODEL_SERVER_PACKAGE`` names a directory where the published
-package was installed from its tarball (``<prefix>/node_modules/@idfkit/language-server``). The
-model server is then started from that directory's bundle and resolves its libraries from that
-install, not from this checkout, which is what a user of the npm package runs. A packed server that
-cannot answer is a broken package rather than a missing component, so where the model server would
-otherwise be skipped it fails instead.
+**The packed model server.** ``MODEL_SERVER_PACKAGE`` names the directory of a packaged model
+server: the published package installed from its tarball
+(``<prefix>/node_modules/@idfkit/language-server``), or the ``model-server`` directory of an unzipped
+VSIX (``<unpacked>/extension/model-server``). The model server is then started from that directory's
+bundle and resolves its libraries from there, not from this checkout, which is what a user of the
+npm package or the extension runs. A packaged server that cannot answer is a broken package rather
+than a missing component, so where the model server would otherwise be skipped it fails instead.
 """
 
 from __future__ import annotations
@@ -194,7 +195,7 @@ def _probe_component(environment: dict[str, str]) -> ComponentProbe:
 
 def _missing_bundle() -> str:
     if _directory(MODEL_SERVER_PACKAGE) is not None:
-        return f"the installed package has no bundle at {_model_bundle()}"
+        return f"the packaged server has no bundle at {_model_bundle()}"
     return (
         f"the bundle {_model_bundle().relative_to(REPOSITORY_ROOT)} has not been built "
         "(make build)"
@@ -218,7 +219,7 @@ def _skip_or_fail(reason: str) -> NoReturn:
     """Skip in a checkout, where an absence is not this repository being wrong; fail when packed."""
     if _directory(MODEL_SERVER_PACKAGE) is not None:
         pytest.fail(
-            f"{MODEL_SERVER_PACKAGE} is set, so this is the published package failing: {reason}"
+            f"{MODEL_SERVER_PACKAGE} is set, so this is a packaged server failing: {reason}"
         )
     pytest.skip(reason)
 

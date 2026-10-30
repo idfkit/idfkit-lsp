@@ -65,7 +65,11 @@ def _write(root: Path, rel_path: str, text: str) -> None:
 
 
 def _capabilities(
-    root: Path, *, source: list[dict[str, Any]], model: list[dict[str, Any]]
+    root: Path,
+    *,
+    source: list[dict[str, Any]],
+    model: list[dict[str, Any]],
+    model_runtime: str = "Node 20 or newer, over stdio",
 ) -> None:
     declaration = {
         "version": 1,
@@ -78,7 +82,7 @@ def _capabilities(
             },
             {
                 "id": "model",
-                "runtime": "the second language, over stdio",
+                "runtime": model_runtime,
                 "documents": [{"language_id": "idf", "extensions": [".idf"]}],
                 "capabilities": model,
             },
@@ -147,6 +151,29 @@ def _server_module(root: Path, *, handled: list[str], pygls_command: str | None 
     _write(root, "server/src/idfkit_lsp/server.py", "\n".join(lines))
 
 
+def _model_server(
+    root: Path,
+    *,
+    engines: str = ">=20",
+    target: str = "node20",
+    locked: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    """The model server's manifest and lockfile, the two records that repeat its Node floor."""
+    _write(
+        root,
+        "model-server/package.json",
+        json.dumps(
+            {
+                "name": "fixture",
+                "engines": {"node": engines},
+                "scripts": {"build": f"esbuild src/main.ts --target={target}"},
+            }
+        ),
+    )
+    packages = {"": {"engines": {"node": engines}}, **(locked or {})}
+    _write(root, "model-server/package-lock.json", json.dumps({"packages": packages}))
+
+
 def _readme(root: Path, body: str) -> None:
     _write(root, "README.md", f"# fixture\n\n{body}\n")
 
@@ -171,6 +198,7 @@ def _agreeing_tree(root: Path) -> None:
             "idfkit-lsp/versions",
         ],
     )
+    _model_server(root)
     _readme(root, "<!-- capabilities:begin -->\n<!-- capabilities:end -->")
     fix_readme(root)
 
@@ -231,6 +259,63 @@ class TestManifest:
         assert "package.json" in failures
         assert "'python'" in failures
         assert "source server" in failures
+
+
+class TestNodeFloor:
+    def test_a_runtime_stating_no_floor_fails(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _capabilities(
+            tmp_path,
+            source=_SOURCE_CAPABILITIES,
+            model=_MODEL_CAPABILITIES,
+            model_runtime="the second language, over stdio",
+        )
+        fix_readme(tmp_path)
+
+        assert "states no 'Node N or newer' floor" in _failures(tmp_path)
+
+    def test_engines_below_the_declared_floor_fails(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _model_server(tmp_path, engines=">=18")
+
+        failures = _failures(tmp_path)
+        assert "model-server/package.json" in failures
+        assert "engines.node is '>=18'" in failures
+
+    def test_a_bundle_target_other_than_the_floor_fails(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _model_server(tmp_path, target="node18")
+
+        assert "--target=node20" in _failures(tmp_path)
+
+    def test_an_installed_package_above_the_floor_fails(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _model_server(
+            tmp_path, locked={"node_modules/@idfkit/core": {"engines": {"node": ">=22"}}}
+        )
+
+        failures = _failures(tmp_path)
+        assert "model-server/package-lock.json" in failures
+        assert "node_modules/@idfkit/core requires Node >=22" in failures
+
+    def test_a_range_admitting_the_floor_passes(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _model_server(
+            tmp_path, locked={"node_modules/either": {"engines": {"node": "^18.0.0 || >=20"}}}
+        )
+
+        report = check_declaration(tmp_path)
+        assert report.ok, report.failures
+
+    def test_a_dev_dependency_above_the_floor_passes(self, tmp_path: Path) -> None:
+        _agreeing_tree(tmp_path)
+        _model_server(
+            tmp_path,
+            locked={"node_modules/vite": {"dev": True, "engines": {"node": ">=22"}}},
+        )
+
+        report = check_declaration(tmp_path)
+        assert report.ok, report.failures
 
 
 class TestSourceServerRegistrations:

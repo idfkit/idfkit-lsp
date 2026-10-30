@@ -1,19 +1,34 @@
 {
     "name": "idfkit-lsp",
     "displayName": "idfkit Language Support",
-    "description": "Editor support for two things: Python source that uses the idfkit library, and EnergyPlus model text. Python files get completion, hover and signature help. Model files get classification, findings, completion, explanation and declaration lookup, served by a second server. What is served and what is not is declared in capabilities.json and nowhere else.",
+    "description": "Completion, hover and signature help for Python code that uses idfkit (requires the idfkit-lsp Python package), plus semantic highlighting, diagnostics, completion, hover and go-to-definition for EnergyPlus IDF files.",
     "version": "0.4.0",
     "publisher": "idfkit",
     "license": "MIT",
+    "homepage": "https://github.com/idfkit/idfkit-lsp#readme",
+    "bugs": {
+        "url": "https://github.com/idfkit/idfkit-lsp/issues"
+    },
     "repository": {
         "type": "git",
         "url": "https://github.com/idfkit/idfkit-lsp"
     },
     "engines": {
-        "vscode": "^1.86.0"
+        "vscode": "^1.90.0"
     },
     "categories": [
         "Programming Languages"
+    ],
+    "keywords": [
+        "energyplus",
+        "idf",
+        "idfkit",
+        "building energy",
+        "building simulation",
+        "energy modeling",
+        "language server",
+        "lsp",
+        "python"
     ],
     "activationEvents": [
         "onLanguage:python",
@@ -72,13 +87,14 @@
         ]
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile && npm run compile:model-server",
-        "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "vscode:prepublish": "npm --prefix client ci && npm run compile && npm --prefix model-server ci --include=dev && npm run compile:model-server",
+        "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap",
         "compile:model-server": "npm --prefix model-server run build",
-        "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch"
+        "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap --watch"
     },
     "devDependencies": {
-        "@types/vscode": "^1.86.0",
+        "@types/vscode": "1.90.0",
+        "@vscode/vsce": "3.9.2",
         "esbuild": "^0.27.3",
         "typescript": "^5.0.0"
     }
