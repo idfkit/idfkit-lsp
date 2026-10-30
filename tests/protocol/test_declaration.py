@@ -157,10 +157,19 @@ def ask(client: ProtocolClient, request: str, document: ProbeDocument) -> Answer
     """Probe one request against one server, without assuming what the answer should be."""
     shape = shape_of(request)
     if shape is RequestShape.UNPROMPTED:
+        # The probe's blank text gives a server nothing to find, so opening it provokes nothing:
+        # the model server publishes only once the text names a version it can read a schema for.
+        # Closing a document it holds does provoke a message, the one taking back what it published,
+        # and that needs no model text in this file. The wait is for this document alone, because
+        # the server is shared by the session and a message about another test's document is no
+        # evidence about this probe. Reopening keeps the probes after this one on an open document.
+        client.did_close(document.uri)
         try:
-            client.await_notification(request, timeout=_QUIET_SECONDS)
+            client.await_notification(request, timeout=_QUIET_SECONDS, uri=document.uri)
         except ProtocolTimeout:
             return Answer(request, False, f"nothing arrived in {_QUIET_SECONDS:g}s")
+        finally:
+            client.did_open(document.uri, document.language_id, document.text)
         return Answer(request, True, "the server sent it unprompted")
 
     if shape is RequestShape.A_COMMAND:

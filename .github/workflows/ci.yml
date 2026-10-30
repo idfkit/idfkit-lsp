@@ -9,6 +9,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The protocol suite fails here rather than skipping when something it needs is missing, so a green
+# run shows that the suite ran against both servers. See tests/protocol/conftest.py.
+env:
+  REQUIRE_FULL_SUITE: "1"
+
 jobs:
   # This repository's entry in the consumer register (governance/consumers.toml in
   # idfkit-conformance, id `idfkit-lsp`) must still describe it: both Resolutions, the level of each
