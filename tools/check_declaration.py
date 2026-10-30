@@ -22,12 +22,20 @@ The source server advertises from the declaration rather than beside each handle
 supplies for an undeclared request is simply never advertised and nothing at runtime objects. That
 is the direction this check exists for: a handler written and then silently unreachable is the
 same silence as a capability promised and never given.
+
+The declaration also states the model server's Node floor, which three more records repeat or
+constrain: the package's ``engines.node``, the bundle's ``--target``, and the ``engines.node`` of
+every package it installs, read from the lockfile so that no install is needed. A dependency bump
+that raises its own floor changes nothing in this repository's text, so it is the one disagreement
+no reviewer would be shown. Which Node an editor release ships cannot be read from any of these, so
+``engines.vscode`` is not compared here.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -52,6 +60,12 @@ CAPABILITIES = "capabilities.json"
 MANIFEST = "package.json"
 README = "README.md"
 SOURCE_SERVER_MODULE = "server/src/idfkit_lsp/server.py"
+MODEL_SERVER_MANIFEST = "model-server/package.json"
+MODEL_SERVER_LOCK = "model-server/package-lock.json"
+
+_DECLARED_NODE_FLOOR = re.compile(r"\bNode (\d+) or newer\b")
+_BUNDLE_TARGET = re.compile(r"--target=node(\d+)\b")
+_RANGE_MAJOR = re.compile(r"^\s*(?:>=|\^|~)?\s*v?(\d+)")
 
 BLOCK_BEGIN = "<!-- capabilities:begin -->"
 BLOCK_END = "<!-- capabilities:end -->"
@@ -402,6 +416,71 @@ def _check_source_server(root: Path, server: ServerDeclaration, report: Report) 
             )
 
 
+def _lowest_major(node_range: str) -> int | None:
+    """The lowest major version an ``engines.node`` range admits, or None if it names none."""
+    majors = [_RANGE_MAJOR.match(part) for part in node_range.split("||")]
+    found = [int(major.group(1)) for major in majors if major is not None]
+    return min(found) if found else None
+
+
+def _engines_node(package: Any) -> str | None:
+    engines = package.get("engines") if isinstance(package, dict) else None
+    node = engines.get("node") if isinstance(engines, dict) else None
+    return node if isinstance(node, str) else None
+
+
+def _check_node_floor(root: Path, server: ServerDeclaration, report: Report) -> None:
+    """The Node floor the declaration states is the one the model server is packaged and bundled
+    for, and no package it installs at runtime asks for more."""
+    stated = _DECLARED_NODE_FLOOR.search(server.runtime)
+    if stated is None:
+        report.fail(CAPABILITIES, "the model server's runtime states no 'Node N or newer' floor")
+        return
+    floor = int(stated.group(1))
+
+    manifest_path = root / MODEL_SERVER_MANIFEST
+    if not manifest_path.is_file():
+        report.fail(MODEL_SERVER_MANIFEST, "is missing, so the Node floor cannot be compared")
+        return
+    manifest = read_json(manifest_path)
+
+    node_range = _engines_node(manifest)
+    if node_range is None or _lowest_major(node_range) != floor:
+        report.fail(
+            MODEL_SERVER_MANIFEST,
+            f"engines.node is {node_range!r}, but {CAPABILITIES} states Node {floor} or newer",
+        )
+
+    scripts = manifest.get("scripts") if isinstance(manifest, dict) else None
+    build = scripts.get("build") if isinstance(scripts, dict) else None
+    target = _BUNDLE_TARGET.search(build) if isinstance(build, str) else None
+    if target is None or int(target.group(1)) != floor:
+        report.fail(
+            MODEL_SERVER_MANIFEST,
+            f"the build script does not bundle for --target=node{floor}, the floor "
+            f"{CAPABILITIES} states",
+        )
+
+    lock_path = root / MODEL_SERVER_LOCK
+    if not lock_path.is_file():
+        report.fail(MODEL_SERVER_LOCK, "is missing, so the installed floors cannot be compared")
+        return
+    lock = read_json(lock_path)
+    packages = lock.get("packages") if isinstance(lock, dict) else None
+    for name, package in sorted(packages.items() if isinstance(packages, dict) else []):
+        # The empty key is the model server itself, compared above. A dev dependency never reaches
+        # a user, so its floor is the toolchain's business.
+        if not name or (isinstance(package, dict) and package.get("dev")):
+            continue
+        required = _engines_node(package)
+        lowest = _lowest_major(required) if required is not None else None
+        if lowest is not None and lowest > floor:
+            report.fail(
+                MODEL_SERVER_LOCK,
+                f"{name} requires Node {required}, above the Node {floor} {CAPABILITIES} states",
+            )
+
+
 def _check_readme(root: Path, declaration: CapabilityDeclaration, report: Report) -> None:
     """The readme states what is served and what is not by rendering the declaration, not by
     restating it, so the two cannot drift apart in prose."""
@@ -445,6 +524,7 @@ def check_declaration(root: Path) -> Report:
         return report
     _check_manifest(root, declaration, report)
     _check_source_server(root, declaration.source, report)
+    _check_node_floor(root, declaration.model, report)
     _check_readme(root, declaration, report)
     return report
 
