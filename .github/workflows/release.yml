@@ -14,6 +14,15 @@
 # THE RELEASE TAG AND THE DECLARED VERSION ARE ONE FACT. The job refuses a release whose tag
 # (`v0.2.0`) does not match `server/pyproject.toml`, rather than rewriting the version from the tag,
 # so the repository never lies about what it published.
+#
+# THE MODEL SERVER GOES TO NPM FROM THE SAME RELEASE, as `@idfkit/language-server` (#33), so an
+# editor other than VS Code can install it without cloning this repository. Same rules: trusted
+# publishing and no token, and the tag must match `model-server/package.json`. npm cannot create a
+# package through trusted publishing, so PREREQUISITE, ONCE: publish the first version by hand
+# (`npm publish` from `model-server/`, by an owner of the `@idfkit` organization), then add a
+# trusted publisher on npmjs.com for `@idfkit/language-server` with organization `idfkit`,
+# repository `idfkit-lsp` and workflow `release.yml`. Until that exists the npm publish step fails
+# and the PyPI job is unaffected, because the two jobs do not depend on each other.
 
 name: release
 
@@ -70,3 +79,69 @@ jobs:
 
       - name: Publish
         run: uv publish --trusted-publishing always dist/*
+
+  publish-npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+
+      # Trusted publishing needs npm 11.5.1 or newer, which Node 24 ships.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Refuse a release whose tag is not the declared version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          declared=$(node -p 'require("./model-server/package.json").version')
+          if [ "${TAG#v}" != "$declared" ]; then
+            echo "::error title=Tag and version disagree::release $TAG, but model-server/package.json declares $declared. Correct one of them; nothing was published."
+            exit 1
+          fi
+
+      - run: uv sync --extra dev
+        working-directory: server
+
+      - run: npm ci
+        working-directory: model-server
+
+      # `npm pack` runs `prepack`, which builds the bundle and copies the declaration and the
+      # licence in, and `postpack`, which takes both copies out of the checkout again.
+      # `--pack-destination` does not create the directory it names.
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+        working-directory: model-server
+
+      - name: Install from the tarball
+        run: |
+          mkdir "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/*.tgz
+
+      # The tarball that is checked is the tarball that is published: nothing is rebuilt between.
+      - name: The tarball carries what the server needs, and its command starts
+        run: >-
+          uv run --project server python -m tools.check_package
+          --tarball "$(ls "$RUNNER_TEMP"/pack/*.tgz)"
+          --installed "$RUNNER_TEMP/consumer"
+
+      # A prerelease goes to `next`, never to `latest`: npm hands `latest` to every
+      # `npm install -g @idfkit/language-server` and `npx` that names no version.
+      - name: Publish
+        run: |
+          declared=$(node -p 'require("./model-server/package.json").version')
+          case "$declared" in
+            *-*) tag=next ;;
+            *) tag=latest ;;
+          esac
+          npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public --tag "$tag"

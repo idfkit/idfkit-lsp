@@ -442,6 +442,10 @@ _BEFORE_A_REGEX = frozenset("=(,:[!&|?{;+")
 def _typescript_pattern_literals(relative_path: str, masked: _MaskedSource) -> list[Finding]:
     findings: list[Finding] = []
     for number, line in enumerate(masked.code.splitlines(), start=1):
+        # A hashbang names the interpreter a published command runs under. Its slashes are a path,
+        # and it must be the first line verbatim, so it can carry no suppression either.
+        if number == 1 and line.startswith("#!"):
+            continue
         if _NEW_REGEXP.search(line):
             findings.append(
                 Finding(

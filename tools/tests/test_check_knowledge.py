@@ -144,6 +144,17 @@ class TestForbiddenShapes:
     def test_clean_typescript_is_not_rejected(self, tree: Path) -> None:
         assert shapes_at(tree, "client/src/clean.ts") == set()
 
+    def test_a_hashbang_is_not_a_pattern(self, tmp_path: Path) -> None:
+        """A published command's first line is a path to an interpreter, not a regular expression."""
+        source = "#!/usr/bin/env node\nexport const answer = 42;\n"
+        root = write_tree(tmp_path, {"model-server/src/main.ts": source})
+        assert shapes_at(root, "model-server/src/main.ts") == set()
+
+    def test_a_hashbang_past_the_first_line_is_still_read(self, tmp_path: Path) -> None:
+        source = "export const answer = 42;\n#!/usr/bin/env node\n"
+        root = write_tree(tmp_path, {"model-server/src/main.ts": source})
+        assert Shape.PATTERN_LITERAL in shapes_at(root, "model-server/src/main.ts")
+
     def test_a_pattern_outside_model_text_is_left_alone(self, tmp_path: Path) -> None:
         """The source server matches first-language source lines, which is its job, not a grammar."""
         source = '''"""Completion context detection for library call sites."""

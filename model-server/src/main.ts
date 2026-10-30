@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * The model server's protocol wiring: stdio in, stdio out, and nothing decided here.
  *
@@ -228,10 +229,9 @@ export function currentOrDropped<T>(
  * `service.ts` does not reach them: it holds the one import of `@idfkit/idfkit/language`, and naming
  * `classify` there would give a reader two names for one function.
  *
- * NOTHING RESOLVES THEM TODAY. This repository installs neither `@idfkit/idfkit` nor its language service,
- * so every member below returns nothing and every handler that needs one says it cannot answer
- * instead of assembling something (Principle IV). The day the two are installed, this interface is
- * where that resolution lands, and no handler changes.
+ * `inputs.ts` resolves them from `@idfkit/idfkit`, a dependency of this package. Where it cannot,
+ * `NOTHING_RESOLVED` below stands in: every member returns nothing and every handler that needs one
+ * says it cannot answer instead of assembling something (Principle IV).
  */
 export interface CallerInputs {
   /** A schema for the version this text declares, or nothing when none can be resolved. */

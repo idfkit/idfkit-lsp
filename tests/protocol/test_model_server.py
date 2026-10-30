@@ -988,16 +988,17 @@ class TestAnswers:
 # ---------------------------------------------------------------------------
 
 
-def _optional_peers() -> tuple[str, ...]:
-    """What the model server declares it resolves the language service through.
+def _installable_names() -> tuple[str, ...]:
+    """The idfkit packages the model server declares, any of which a message may tell a user to install.
 
     Read from the manifest rather than written here, so a message naming a different install than
-    the one this server would take is a failure rather than a coincidence.
+    the one this server would take is a failure rather than a coincidence. The facade and the
+    language service are both ordinary dependencies now that the facade is published.
     """
     manifest = json.loads(_MODEL_MANIFEST.read_text(encoding="utf-8"))
-    peers = manifest.get("peerDependencies", {})
-    assert peers, f"{_MODEL_MANIFEST} declares no peer for the language service"
-    return tuple(sorted(peers))
+    names = [name for name in manifest.get("dependencies", {}) if name.startswith("@idfkit/")]
+    assert names, f"{_MODEL_MANIFEST} declares no idfkit package to resolve the language service"
+    return tuple(sorted(names))
 
 
 class TestMissingComponent:
@@ -1037,9 +1038,9 @@ class TestMissingComponent:
             assert "install" in absence.text.lower(), (
                 f"the message does not say what to do about it: {absence.text!r}"
             )
-            assert any(peer in absence.text for peer in _optional_peers()), (
+            assert any(peer in absence.text for peer in _installable_names()), (
                 "the message names no package this server actually resolves the language service "
-                f"through ({', '.join(_optional_peers())}): {absence.text!r}"
+                f"through ({', '.join(_installable_names())}): {absence.text!r}"
             )
             logged = [
                 message
