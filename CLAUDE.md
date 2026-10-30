@@ -150,11 +150,14 @@ by trusted publishing, prereleases under `next`.
 ## Packaging the extension
 
 The model server bundle leaves `@idfkit/*` external, and `@idfkit/schemas` is read from disk, so a
-VSIX must carry those packages beside the bundle. `vscode:prepublish` runs `npm ci` in
-`model-server/`, which holds the delivered levels to the lockfile, and `.vscodeignore` keeps
-`model-server/node_modules/@idfkit/**` and nothing else from that directory. Every other runtime
-dependency of the model server is compiled into `dist/main.js`, so a new non-`@idfkit` package that
-is not bundled needs its own line there.
+VSIX must carry those packages beside the bundle. `vscode:prepublish` runs `npm ci` in `client/` and
+in `model-server/`, which holds the delivered levels to the lockfiles, and replaces whatever
+`node_modules` those directories held. The root `npm ci` remains a prerequisite, because the
+prepublish step itself runs the root `esbuild`. `.vscodeignore` keeps
+`model-server/node_modules/@idfkit/**` and nothing else from that directory. Every other direct
+runtime dependency of the model server is compiled into `dist/main.js`, but a third-party runtime
+dependency of an `@idfkit` package is not, because those packages are external. A new package of
+either kind that is not bundled needs its own line there.
 
 ## CI
 
