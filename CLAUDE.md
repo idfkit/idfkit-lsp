@@ -147,6 +147,15 @@ declaration. The `packed` job in `ci.yml` installs the tarball into an empty dir
 `MODEL_SERVER_PACKAGE`. The `publish-npm` job in `release.yml` publishes from the same tag as PyPI,
 by trusted publishing, prereleases under `next`.
 
+## Publishing the extension
+
+The `publish-vsix` job in `release.yml` packages the root `package.json` with `npx @vscode/vsce` at
+an exact version, runs the protocol suite against the unpacked VSIX through `MODEL_SERVER_PACKAGE`,
+attaches the file to the GitHub release, and publishes that file to the Marketplace with
+`--packagePath`. A prerelease is skipped, because the Marketplace accepts only major.minor.patch.
+The publisher and the `VSCE_PAT` secret are a one-time prerequisite, stated at the top of the
+workflow.
+
 ## CI
 
 `.github/workflows/ci.yml`: lint, typecheck (both languages), the three declaration checks, the
