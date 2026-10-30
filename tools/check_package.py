@@ -57,7 +57,7 @@ def _check_tarball(root: Path, tarball: Path, report: Report) -> None:
                 )
         if "package/dist/main.js" in members:
             bundle = archive.extractfile("package/dist/main.js")
-            if bundle is None or has_source_map_comment(bundle.read().decode("utf-8")):
+            if bundle is None or has_source_map_comment(bundle.read()):
                 report.fail(tarball, "dist/main.js names a source map the package does not carry")
 
 

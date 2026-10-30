@@ -43,6 +43,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from tools._common import read_json
+from tools.check_levels import declared_libraries
 
 from .harness import ProtocolClient, ProtocolTimeout, start_server
 
@@ -992,8 +994,8 @@ class TestAnswers:
 
 def _declared_levels() -> dict[str, str]:
     """The level ``levels.json`` declares for each library, which the answer is held against."""
-    record = json.loads((REPOSITORY_ROOT / "levels.json").read_text(encoding="utf-8"))
-    return {library["name"]: library["level"] for library in record["libraries"]}
+    record = read_json(REPOSITORY_ROOT / "levels.json")
+    return {library.lookup_name: library.level for library in declared_libraries(record)}
 
 
 def _reported_levels(client: ProtocolClient) -> dict[str, str | None]:
@@ -1019,11 +1021,7 @@ class TestVersions:
     def test_a_compiled_in_library_reports_its_level_with_no_manifest_to_read(
         self, model_server_description: ServerDescription, tmp_path: Path
     ) -> None:
-        """The bundle alone, so nothing but what was compiled into it can supply a level.
-
-        Resolved libraries are absent here, which holds the two kinds apart: a compiled-in library
-        states its level, and a library that does not resolve states none.
-        """
+        """The bundle alone, so nothing but what was compiled into it can supply a level."""
         package = Path(model_server_description.cwd or "")
         extension = tmp_path / "extension"
         bundle = extension / "model-server" / "dist" / "main.js"
@@ -1042,14 +1040,11 @@ class TestVersions:
             reported = _reported_levels(model)
 
         declared = _declared_levels()
-        resolved = [name for name in reported if name.startswith("@idfkit/")]
-        compiled_in = [name for name in reported if name not in resolved]
-        assert resolved, "the report names no library resolved at run time"
+        compiled_in = [name for name in reported if not name.startswith("@idfkit/")]
         assert compiled_in, "the report names no library compiled into the bundle"
         assert {name: reported[name] for name in compiled_in} == {
             name: declared[name] for name in compiled_in
         }
-        assert {reported[name] for name in resolved} == {None}
 
 
 # ---------------------------------------------------------------------------

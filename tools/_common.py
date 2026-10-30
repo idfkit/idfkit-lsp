@@ -15,10 +15,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-_SOURCE_MAP_COMMENT = re.compile(r"^//# sourceMappingURL=", re.MULTILINE)
+_SOURCE_MAP_COMMENT = re.compile(rb"^//# sourceMappingURL=", re.MULTILINE)
 
 
-def has_source_map_comment(bundle: str) -> bool:
+def has_source_map_comment(bundle: bytes) -> bool:
     """Whether a bundle names a source map. No package ships one, so the comment would dangle."""
     return _SOURCE_MAP_COMMENT.search(bundle) is not None
 

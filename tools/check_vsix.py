@@ -81,7 +81,7 @@ def _check_files(root: Path, extension: Path, report: Report) -> None:
     for relative in required:
         if not (extension / relative).is_file():
             report.fail(extension, f"the VSIX does not carry {relative}")
-        elif has_source_map_comment((extension / relative).read_text(encoding="utf-8")):
+        elif has_source_map_comment((extension / relative).read_bytes()):
             report.fail(extension, f"{relative} names a source map the VSIX does not carry")
     packaged = extension / DECLARATION
     if not packaged.is_file():

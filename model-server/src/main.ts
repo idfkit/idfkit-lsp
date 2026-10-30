@@ -337,8 +337,8 @@ export function ownManifest(): Manifest | undefined {
 
 const require = createRequire(import.meta.url);
 
-/** Written by `build.mjs` into the bundle, and undefined when this module runs unbundled. */
-declare const __BUNDLED_LEVELS__: Readonly<Record<string, string>> | undefined;
+/** Written by `build.mjs` into the bundle as JSON text, and undefined when this runs unbundled. */
+declare const __BUNDLED_LEVELS__: string | undefined;
 
 /**
  * The level of each library compiled into this bundle, read from that library's installed manifest
@@ -348,7 +348,9 @@ declare const __BUNDLED_LEVELS__: Readonly<Record<string, string>> | undefined;
  * install the manifest beside the bundle describes a copy the bundle never loads.
  */
 const BUNDLED_LEVELS: Readonly<Record<string, string>> =
-  typeof __BUNDLED_LEVELS__ === 'undefined' ? {} : __BUNDLED_LEVELS__;
+  typeof __BUNDLED_LEVELS__ === 'undefined'
+    ? {}
+    : asRecord(JSON.parse(__BUNDLED_LEVELS__) as unknown);
 
 /**
  * The level a library actually resolved to, read from the installed package's own manifest.

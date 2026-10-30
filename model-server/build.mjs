@@ -31,14 +31,18 @@ function readManifest(path) {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
-const declared = Object.keys(readManifest(join(here, 'package.json')).dependencies ?? {});
+// The two sections `versionReport` names libraries from, so every name it reports is covered.
+const manifest = readManifest(join(here, 'package.json'));
+const declared = Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies });
 const compiledIn = declared.filter((name) => !name.startsWith(EXTERNAL_SCOPE));
+
+const outfile = 'dist/main.js';
 
 const result = await build({
   absWorkingDir: here,
   entryPoints: ['src/main.ts'],
   bundle: true,
-  outfile: 'dist/main.js',
+  outfile,
   format: 'esm',
   platform: 'node',
   target,
@@ -50,19 +54,25 @@ const result = await build({
   metafile: true,
   logLevel: 'info',
   define: {
+    // JSON text rather than an object: esbuild injects an object-valued define as a module of its
+    // own, with a call to initialize it in every wrapped module of the bundle.
     __BUNDLED_LEVELS__: JSON.stringify(
-      Object.fromEntries(
-        compiledIn.map((name) => [
-          name,
-          readManifest(join(here, 'node_modules', name, 'package.json')).version,
-        ]),
+      JSON.stringify(
+        Object.fromEntries(
+          compiledIn.map((name) => [
+            name,
+            readManifest(join(here, 'node_modules', name, 'package.json')).version,
+          ]),
+        ),
       ),
     ),
   },
 });
 
 // A declared library the bundle does not contain did not run, so no level may be stated for it.
-const inputs = Object.keys(result.metafile.inputs);
+// Read from the output rather than from `metafile.inputs`, which also lists a library imported and
+// then tree-shaken away entirely.
+const inputs = Object.keys(result.metafile.outputs[outfile].inputs);
 for (const name of compiledIn) {
   if (!inputs.some((input) => input.startsWith(`node_modules/${name}/`))) {
     throw new Error(`${name} is declared and is not in the bundle, so its level would be false`);

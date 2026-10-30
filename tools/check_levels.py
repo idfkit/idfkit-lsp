@@ -192,7 +192,7 @@ def _statement(root: Path, rel_path: str, library: str) -> Statement:
     return Statement(rel_path, problem=f"is not a file kind this check can read for {library}")
 
 
-def _libraries(declaration: object) -> list[ResolvedLibrary]:
+def declared_libraries(declaration: object) -> list[ResolvedLibrary]:
     """Read the entries this check can act on, leaving malformed ones to schema validation."""
     if not isinstance(declaration, dict):
         return []
@@ -340,7 +340,7 @@ def check_levels(root: Path) -> Report:
     declaration = read_json(source)
     validate_against_schema(declaration, SCHEMA_PATH, report, source)
 
-    libraries = _libraries(declaration)
+    libraries = declared_libraries(declaration)
     for library in libraries:
         _check_standing(library, report)
         _check_forward(root, library, report)
