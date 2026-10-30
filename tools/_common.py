@@ -2,17 +2,25 @@
 
 Every check in this directory reads a declared record, compares it against the repository as it
 actually stands, and fails loudly naming both the offending file and the rule broken. This module
-holds the three pieces all of them need and nothing else: where the repository root is, how a
-declared record is read, and how a failure is reported.
+holds what more than one of them needs and nothing else: where the repository root is, how a
+declared record is read, how a failure is reported, and what a shipped bundle may not contain.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+_SOURCE_MAP_COMMENT = re.compile(r"^//# sourceMappingURL=", re.MULTILINE)
+
+
+def has_source_map_comment(bundle: str) -> bool:
+    """Whether a bundle names a source map. No package ships one, so the comment would dangle."""
+    return _SOURCE_MAP_COMMENT.search(bundle) is not None
 
 
 def repository_root() -> Path:

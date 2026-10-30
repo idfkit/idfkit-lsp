@@ -23,10 +23,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --platform=node --target=node20 --external:@idfkit/* --banner:js=\"import { createRequire as __nodeCreateRequire } from 'node:module'; const require = __nodeCreateRequire(import.meta.url);\" --sourcemap",
+    "build": "node build.mjs --target=node20",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepack": "npm run build && node -e \"const fs = require('node:fs'); fs.copyFileSync('../capabilities.json', 'dist/capabilities.json'); fs.copyFileSync('../LICENSE', 'LICENSE')\"",
+    "prepack": "npm run build -- --sourcemap=external && node -e \"const fs = require('node:fs'); fs.copyFileSync('../capabilities.json', 'dist/capabilities.json'); fs.copyFileSync('../LICENSE', 'LICENSE')\"",
     "postpack": "node -e \"const fs = require('node:fs'); fs.rmSync('dist/capabilities.json', { force: true }); fs.rmSync('LICENSE', { force: true })\""
   },
   "dependencies": {

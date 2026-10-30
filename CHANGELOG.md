@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The client no longer passes `--stdio` to the model server twice. `TransportKind.stdio` adds the
+  argument, so it is no longer also written in `args`.
+- `idfkit-lsp/versions` from the model server no longer reports `null` for `vscode-languageserver`
+  and `vscode-languageserver-textdocument` in a VSIX. Both are compiled into the bundle, so the build
+  now records each level from the installed manifest and the server reports that level. An npm
+  install previously reported the copy in `node_modules`, which the bundle does not load.
+- The bundles in the VSIX and the npm package no longer end in a `sourceMappingURL` comment naming a
+  map neither ships. `tools/check_vsix.py` and `tools/check_package.py` now fail on such a comment.
+  Local builds keep the linked source map, so debugging a checkout is unchanged.
 - The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
   contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
   advertised no model text capability. The prepublish step now installs the locked dependencies of

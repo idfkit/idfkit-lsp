@@ -234,16 +234,17 @@ function startModelServer(
         env.ELECTRON_RUN_AS_NODE = "1";
     }
 
+    // `TransportKind.stdio` is what passes `--stdio`: vscode-languageclient appends it to `args`.
     const serverOptions: ServerOptions = {
         run: {
             command,
-            args: [bundle, "--stdio"],
+            args: [bundle],
             transport: TransportKind.stdio,
             options: { env },
         },
         debug: {
             command,
-            args: [bundle, "--stdio"],
+            args: [bundle],
             transport: TransportKind.stdio,
             options: { env },
         },

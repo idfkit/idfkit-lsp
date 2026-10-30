@@ -156,6 +156,17 @@ def test_a_missing_file_fails_without_starting_anything(tmp_path: Path, missing:
     assert missing in failures[0]
 
 
+@pytest.mark.parametrize("bundle", [BUNDLE, CLIENT_ENTRY])
+def test_a_bundle_naming_a_source_map_fails(tmp_path: Path, bundle: str) -> None:
+    tree = _tree(tmp_path)
+    with (tree.extension / bundle).open("a", encoding="utf-8") as handle:
+        handle.write("\n//# sourceMappingURL=main.js.map\n")
+    failures = _failures(tree)
+    assert len(failures) == 1
+    assert bundle in failures[0]
+    assert "source map" in failures[0]
+
+
 def test_the_entry_point_is_read_from_the_packaged_manifest(tmp_path: Path) -> None:
     tree = _tree(tmp_path)
     (tree.extension / MANIFEST).write_text(
