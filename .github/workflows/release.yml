@@ -31,13 +31,19 @@
 # file is attached to the GitHub release first, for an editor that does not read the Marketplace,
 # so a failed Marketplace upload still leaves it installable.
 #
-# THE MARKETPLACE TAKES A TOKEN HERE. PREREQUISITE, ONCE: create the Marketplace publisher with the
-# ID `idfkit`, which is what the root `package.json` names and which cannot be changed afterwards.
-# Create an Azure DevOps personal access token with the organization set to "All accessible
-# organizations" and the scope Marketplace > Manage, and store it as the repository secret
-# `VSCE_PAT`. Until that exists the publish step fails, nothing reaches the Marketplace, and the
-# other two jobs are unaffected. Microsoft documents the retirement of global tokens, which this
-# one is, on 2026-12-01; the replacement is Marketplace Trusted Publishing (`vsce publish --oidc`).
+# Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for this job
+# for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE: create the
+# Marketplace publisher with the ID `idfkit`, which is what the root `package.json` names and which
+# cannot be changed afterwards, then add a Trusted Publishing policy on the publisher management
+# page with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`, and no environment.
+# Until that exists the publish step fails, nothing reaches the Marketplace, and the other two jobs
+# are unaffected. The documentation's `vsce login` verification step prompts for a personal access
+# token, which this route does not use, so that step does not apply.
+#
+# THE FIRST UPLOAD IS UNVERIFIED. The documentation does not say whether `--oidc` works for the
+# first upload of a new extension. If the Marketplace refuses it, the documented fallback is to
+# upload the VSIX attached to the release on the publisher management page, by hand. Later releases
+# then publish through this job.
 #
 # A PRERELEASE IS SKIPPED, NOT SENT TO THE PRE-RELEASE CHANNEL. The Marketplace accepts only
 # major.minor.patch, and `vsce package` does not say so: only `vsce publish` refuses a suffix. The
@@ -173,11 +179,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # to attach the VSIX to the release
+      id-token: write # to publish through Marketplace Trusted Publishing
     env:
       VSCE: "@vscode/vsce@4.1.0"
     steps:
       # No credential left in the checkout: this job holds a write token and runs npm's lifecycle
-      # scripts, and only the step that attaches the file is given the token.
+      # scripts, and only the step that attaches the file is given the token. `id-token: write`
+      # cannot be narrowed the same way: it is granted per job, so those scripts can also request
+      # an OIDC token and exchange it for a Marketplace credential.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -262,16 +271,9 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" "$RUNNER_TEMP"/vsix/*.vsix --clobber --repo "$GITHUB_REPOSITORY"
 
-      # Refused here by name: with an empty VSCE_PAT, vsce falls through to prompting for a token.
+      # With `--oidc`, vsce reads no stored token and does not prompt: a failed exchange stops here.
       # The file that was checked is the file published: `--packagePath` does not rebuild.
       # `--skip-duplicate` so that a rerun after the Marketplace accepted the upload does not fail
       # on the version it already holds.
       - name: Publish
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: |
-          if [ -z "$VSCE_PAT" ]; then
-            echo "::error title=No Marketplace token::the repository secret VSCE_PAT is not set; see the prerequisite at the top of release.yml. Nothing was published to the Marketplace."
-            exit 1
-          fi
-          npx --yes "$VSCE" publish --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"
+        run: npx --yes "$VSCE" publish --oidc --skip-duplicate --packagePath "$(ls "$RUNNER_TEMP"/vsix/*.vsix)"

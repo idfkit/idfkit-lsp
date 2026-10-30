@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The release workflow packages the VS Code extension, checks the VSIX, attaches it to the GitHub
-  release, and publishes that file to the Visual Studio Marketplace. Prereleases are skipped. The
-  job requires a Marketplace publisher and the repository secret `VSCE_PAT`, neither of which exists
-  yet.
+  release, and publishes that file to the Visual Studio Marketplace through Trusted Publishing, with
+  no stored token. Prereleases are skipped. The job requires a Marketplace publisher and a Trusted
+  Publishing policy, neither of which exists yet.
 
 ## [0.4.0] - 2026-10-30
 

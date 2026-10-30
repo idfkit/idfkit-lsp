@@ -152,9 +152,10 @@ by trusted publishing, prereleases under `next`.
 The `publish-vsix` job in `release.yml` packages the root `package.json` with `npx @vscode/vsce` at
 an exact version, runs the protocol suite against the unpacked VSIX through `MODEL_SERVER_PACKAGE`,
 attaches the file to the GitHub release, and publishes that file to the Marketplace with
-`--packagePath`. A prerelease is skipped, because the Marketplace accepts only major.minor.patch.
-The publisher and the `VSCE_PAT` secret are a one-time prerequisite, stated at the top of the
-workflow.
+`--packagePath` and `--oidc`, so no token is stored. A prerelease is skipped, because the Marketplace
+accepts only major.minor.patch. The publisher and its Trusted Publishing policy are a one-time
+prerequisite, stated at the top of the workflow, along with the fallback for a first upload that
+`--oidc` does not accept. The job's `id-token: write` applies to all of its steps, not only Publish.
 
 ## CI
 
