@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The minimum Node version of the npm package `@idfkit/language-server` is now 20 (previously 18),
   which matches `engines.node` in `@idfkit/core`, `@idfkit/idfkit` and `@idfkit/language` 0.4.0.
   `capabilities.json` and the readme state the same floor, and the bundle targets `node20`.
+- `.vscodeignore` is an allowlist, so a new file in the repository stays out of the VSIX unless a
+  line names it. Agent instructions, the Python server's source, tool configuration, `levels.json`
+  and the source maps of the two bundles no longer ship, and neither does anything under `.claude/`,
+  including a git worktree there.
+
+### Fixed
+
+- The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
+  contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
+  advertised no model text capability. The prepublish step now installs the locked dependencies of
+  the client and the model server, and `.vscodeignore` keeps `@idfkit/idfkit`, `@idfkit/core`,
+  `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
+  `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
 
 ## [0.4.0] - 2026-10-30
 
