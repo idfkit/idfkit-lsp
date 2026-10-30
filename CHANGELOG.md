@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `make package` builds the VS Code extension from a clean checkout after `make install`, which now
+  installs the root and client dependencies as well. `@vscode/vsce` is an exact-pinned development
+  dependency.
+- The `vsix` CI job builds the extension, unzips it outside the checkout, and fails if its model
+  server does not advertise what `capabilities.json` marks present. `tools/check_vsix.py` performs
+  the check, and the protocol suite then runs against the packaged server.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without

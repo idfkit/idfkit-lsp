@@ -2,13 +2,17 @@
 
 SERVER_DIR := server
 MODEL_SERVER_DIR := model-server
+CLIENT_DIR := client
+VSIX ?= idfkit-lsp.vsix
 
 # ── Environment ──────────────────────────────────────────────────────────
 
 .PHONY: install
-install: ## Install both runtimes with their dev dependencies
+install: ## Install both runtimes, the client and the packaging tools, at their locked levels
 	cd $(SERVER_DIR) && uv sync --extra dev
-	cd $(MODEL_SERVER_DIR) && npm install
+	npm ci
+	cd $(CLIENT_DIR) && npm ci
+	cd $(MODEL_SERVER_DIR) && npm ci
 
 .PHONY: lock
 lock: ## Regenerate the lockfile
@@ -91,6 +95,10 @@ fix: lint-fix format-fix ## Auto-fix lint and format issues
 build: ## Bundle the client and the model server
 	npm run compile
 	cd $(MODEL_SERVER_DIR) && npm run build
+
+.PHONY: package
+package: ## Package the VS Code extension (VSIX=<path> names the output, default idfkit-lsp.vsix)
+	npx --no-install vsce package --out "$(VSIX)"
 
 # ── Pre-commit ───────────────────────────────────────────────────────────
 
