@@ -135,6 +135,17 @@ routed to the first and `idf` to the second. Which extensions belong to which se
 `capabilities.json` rather than in this readme, so a client that reads it does not need updating
 when a document kind moves.
 
+Neither server provides the following two behaviours for model text.
+
+1. Comment toggling. The protocol has no request for it. VS Code reads the comment marker from
+   `language-configuration.json`. Any other editor needs its own comment setting for `idf`, set to
+   the `comments.lineComment` value in that file. `capabilities.json` records this under
+   `retained_knowledge`.
+2. Colour without semantic tokens. This repository holds no TextMate grammar, because the
+   constitution forbids a grammar pattern here. Model text therefore has no colour while the model
+   server is unavailable, or while the editor does not apply semantic tokens. VS Code leaves that
+   decision to the theme by default (`editor.semanticHighlighting.enabled`).
+
 Ask either server what it is running:
 
 ```

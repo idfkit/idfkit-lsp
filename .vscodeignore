@@ -17,6 +17,9 @@
 # The declaration both the client and the model server read at run time, from this location.
 !capabilities.json
 
+# The comment marker for `.idf` files. VS Code reads it only from here, and capabilities.json records why.
+!language-configuration.json
+
 # The client bundle. It includes vscode-languageclient, so nothing beside it is needed.
 !client/dist/extension.js
 

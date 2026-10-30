@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Comment toggling for `.idf` files in VS Code, through a `language-configuration.json` holding the
+  line comment marker and nothing else. No server can supply the marker, because the protocol has no
+  such request, so it is recorded in `capabilities.json` as an editor-specific limitation and a
+  protocol test holds it against the language service. Other editors configure their own marker.
 - `make package` builds the VS Code extension from a clean checkout after `make install`, which now
   installs the root and client dependencies as well. `@vscode/vsce` is an exact-pinned development
   dependency.

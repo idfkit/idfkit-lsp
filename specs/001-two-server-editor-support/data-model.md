@@ -134,7 +134,7 @@ One per open model document, for the life of the document.
 Not stored. A pure conversion between the unit the language service states and the unit the client
 negotiated, in one module, over one document's text. It is the only arithmetic over model text this
 repository performs, it needs no schema and no grammar, and it is recorded in the plan's Complexity
-Tracking as the single exception to Principle I.
+Tracking as the single exception to Principle I for arithmetic over model text.
 
 ## What is deliberately not modelled here
 

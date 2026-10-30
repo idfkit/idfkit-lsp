@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # records, none of which an editor ever reads an answer out of.
 SCANNED_ROOTS: tuple[str, ...] = ("server/src", "model-server/src", "client/src")
 
-# The single declared exception, named rather than inferred. plan.md Complexity Tracking.
+# The single file this check exempts, named rather than inferred. plan.md Complexity Tracking.
 EXEMPT_FILE = "model-server/src/positions.ts"
 
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", "dist", "out", ".venv", "coverage"})
@@ -623,8 +623,8 @@ def main() -> int:
         print(f"  suppressions in force: {result.suppressions}")
     else:
         print(
-            f"  {EXEMPT_FILE} is the single declared exception (plan.md Complexity Tracking) "
-            "and is exempt from all three shapes.",
+            f"  {EXEMPT_FILE} is the single file this check exempts (plan.md Complexity Tracking), "
+            "and the exemption covers all three shapes.",
         )
         print(
             "  Any other line may be suppressed once, with a reason, by "
