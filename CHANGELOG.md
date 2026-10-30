@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `.vscodeignore` is an allowlist, so a new file in the repository stays out of the VSIX unless a
+  line names it. Agent instructions, the Python server's source, tool configuration, `levels.json`
+  and the source maps of the two bundles no longer ship, and neither does anything under `.claude/`,
+  including a git worktree there.
+
 ### Fixed
 
 - The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
