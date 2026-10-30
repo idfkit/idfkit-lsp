@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `python -m idfkit_lsp --version` prints the source server's level and exits. It answers only
+  after the server and its libraries have loaded, so its exit status says whether an interpreter
+  can run the server.
 - The release workflow packages the VS Code extension, checks the VSIX, attaches it to the GitHub
   release, and publishes that file to the Visual Studio Marketplace through Trusted Publishing, with
   no stored token, from a separate job that installs no project dependency. Prereleases are skipped.
@@ -54,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the client and the model server, and `.vscodeignore` keeps `@idfkit/idfkit`, `@idfkit/core`,
   `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
   `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
+- The extension asks the configured interpreter that question before starting the source server.
+  When the interpreter cannot run it, the server is not started, the reason goes to the output
+  channel, and one information message appears per interpreter when a Python file is open. This
+  replaces the error notification, the five restarts, and the unhandled rejections that every Python
+  file used to cause on a machine without the server. The model server is not affected.
+- A source server that closes during startup is no longer restarted.
+- **idfkit: Restart Language Servers** now reads `idfkitLsp.pythonPath` again, so a corrected setting
+  takes effect without reloading the window. **idfkit: Open Documentation** now says why it cannot
+  answer when the source server is not running.
+- Clearing `idfkitLsp.pythonPath` now means `python3`, as the setting's comment in the client always
+  said, rather than an empty command.
 
 ## [0.4.0] - 2026-10-30
 
