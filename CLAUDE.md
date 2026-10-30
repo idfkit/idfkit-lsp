@@ -100,7 +100,8 @@ Pipeline: **document change → AST analysis → handler response**.
    component is absent. `inputs.ts` reaches the rest of the library through `@idfkit/idfkit` the same way
 4. `documents.ts` — one service handle per open document, fed edits under incremental sync
 5. `positions.ts` — **the only arithmetic over model text in this repository**, and the single
-   declared exception to Principle I. `tools/check_knowledge.py` exempts it by name
+   declared exception to Principle I for that arithmetic. `tools/check_knowledge.py` exempts it by
+   name
 6. `handlers/` — semantic tokens, diagnostics, completion, hover, definition. Each is a pure
    translation of what the service returned
 
@@ -124,9 +125,9 @@ it rather than a reviewer:
 - No answer assembled locally when a library declines to give one. An absence is stated, and an
   absence that is permanent or temporary is recorded in `capabilities.json` with its kind
 
-`language-configuration.json` is the recorded exception: the line comment marker and nothing else,
-because no server can supply it (`retained_knowledge` in `capabilities.json`). A `wordPattern` or a
-TextMate grammar is a grammar pattern and stays out.
+`language-configuration.json` is a recorded exception: it holds the line comment marker and nothing
+else, because no server can supply it (`retained_knowledge` in `capabilities.json`). A `wordPattern`
+or a TextMate grammar is a grammar pattern and is not permitted.
 
 A suppression is available and costs a sentence: `# check-knowledge: allow <reason>` or the `//`
 form. The reason is required, which is what keeps suppressions countable.
