@@ -1,6 +1,6 @@
 {
   "name": "@idfkit/language-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Language server for EnergyPlus model text. Translates the idfkit language service into the Language Server Protocol.",
   "license": "MIT",
   "repository": {
