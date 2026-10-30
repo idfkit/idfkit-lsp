@@ -21,6 +21,6 @@ Three checks hold the rules up before review rather than at review:
 the day-to-day commands.
 
 The capabilities block in `README.md` is generated. Regenerate it after a change to the declaration
-with `uv run --project server python -m tools.check_declaration --fix`. `make check-declaration`
-only checks it, and CI runs that check, which is where a readme that has drifted from the servers
-is caught.
+with `uv run --frozen --extra dev --project server python -m tools.check_declaration --fix`.
+`make check-declaration` only checks it, and CI runs that check, which is where a readme that has
+drifted from the servers is caught.

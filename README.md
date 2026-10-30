@@ -5,13 +5,12 @@ Editor support for two different things: Python source that uses the
 
 ## What it does
 
-- **Python files that use idfkit** (`.py`, `.pyi`), through the source server: completion, hover and
-  signature help.
-- **EnergyPlus model files** (`.idf`), through the model server: semantic highlighting, diagnostics,
-  completion, hover and go-to-definition.
+- **Python files that use idfkit**, through the source server: completion, hover and signature help.
+- **EnergyPlus IDF files**, through the model server: semantic highlighting, diagnostics, completion,
+  hover and go-to-definition.
 
-The model server is bundled in the extension. The source server is installed separately, as
-described under [Installing](#installing).
+The model server is bundled in the extension. The source server is installed separately and is
+needed only for Python files, as described under [Installing](#installing).
 
 ## Installing
 

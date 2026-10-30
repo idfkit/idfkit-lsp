@@ -1,7 +1,7 @@
 {
     "name": "idfkit-lsp",
     "displayName": "idfkit Language Support",
-    "description": "Completion, hover and signature help for Python code that uses idfkit, plus semantic highlighting, diagnostics, completion, hover and go-to-definition for EnergyPlus IDF files.",
+    "description": "Completion, hover and signature help for Python code that uses idfkit (requires the idfkit-lsp Python package), plus semantic highlighting, diagnostics, completion, hover and go-to-definition for EnergyPlus IDF files.",
     "version": "0.4.0",
     "publisher": "idfkit",
     "license": "MIT",
