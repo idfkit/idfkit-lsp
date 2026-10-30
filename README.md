@@ -17,15 +17,38 @@ needed only for Python files, as described under [Installing](#installing).
 For the extension, install it from the marketplace. It bundles the model server and needs no
 separate Node install, because it launches the editor's own runtime.
 
-The source server needs a Python interpreter with `idfkit-lsp` installed:
+The source server needs a Python interpreter with `idfkit-lsp` installed. It pins `idfkit` to one
+exact level, so installing it into a project's own environment can conflict with the `idfkit` that
+project uses. Give it an environment of its own:
 
 ```bash
-pip install idfkit-lsp
+python3 -m venv ~/.idfkit-lsp
+~/.idfkit-lsp/bin/python -m pip install idfkit-lsp
 ```
 
-Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpreter on your path.
+With uv, the equivalent is `uv venv ~/.idfkit-lsp`, then
+`uv pip install --python ~/.idfkit-lsp/bin/python idfkit-lsp`. `uv tool install` does not apply,
+because the package provides no executable. On Windows, the interpreter is
+`%USERPROFILE%\.idfkit-lsp\Scripts\python.exe`.
+
+Point the extension at that interpreter in your settings, as an absolute path, because `~` is not
+expanded there:
+
+```json
+{
+  "idfkitLsp.pythonPath": "/home/you/.idfkit-lsp/bin/python"
+}
+```
+
+Then run **idfkit: Restart Language Servers**. Without the setting, the extension uses `python3`.
 `idfkitLsp.nodePath` does the same for the model server, and exists for the same reason: an
 environment that is not the one we guessed.
+
+Before starting the source server, the extension runs `<interpreter> -m idfkit_lsp --version`. If
+that fails, the extension does not start the server, records the reason in the
+**idfkit: source server** output channel, and shows one information message per interpreter when a
+Python file is open. The model server is not affected. You can run the same command yourself to
+check an interpreter, including from another editor's launch configuration.
 
 The model server is also published to npm as `@idfkit/language-server`, for editors other than
 VS Code. It needs Node 20 or newer, the floor of the idfkit packages it installs, and brings the

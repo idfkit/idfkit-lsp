@@ -18,7 +18,8 @@ knowledge. That sentence decides most questions here.
   nothing else. Peer of the source server, not a subordinate. Bundled in the VS Code extension and
   published to npm as `@idfkit/language-server` for every other editor.
 - **Client** (`client/`): the VS Code extension. Locates and starts each server, declares which
-  documents each serves, surfaces server output. Nothing else lives here.
+  documents each serves, surfaces server output. Nothing else lives here. Locating the source server
+  includes asking the interpreter `-m idfkit_lsp --version` first, and not starting it on a failure.
 - **Protocol suite** (`tests/protocol/`): one suite, both servers, protocol in and protocol out,
   no editor anywhere.
 - **Checks** (`tools/`): the three gates that hold the constitution up before review, plus
