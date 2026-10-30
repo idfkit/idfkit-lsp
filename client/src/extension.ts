@@ -6,19 +6,34 @@
  * The one exception is the documentation command, which is recorded in capabilities.json as
  * `editor_specific`. The server resolves the address; opening it is the editor's act, because a
  * server cannot open a browser.
+ *
+ * Asking an interpreter whether it can run the source server is part of locating that server: the
+ * question has to be asked from outside, because a server that cannot load cannot report it. The
+ * answer is the exit status of `python -m idfkit_lsp --version`, which any other editor's launch
+ * configuration can read in the same way and which the protocol suite holds to.
  */
 
 import * as path from "path";
 import * as fs from "fs";
+import { execFile } from "child_process";
 import * as vscode from "vscode";
 import {
+    CloseAction,
+    ErrorHandler,
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
+    State,
     TransportKind,
 } from "vscode-languageclient/node";
 
-/** One entry per server. Which documents each serves comes from capabilities.json, read below. */
+/** How the source server is launched. The probe below asks about exactly this command. */
+const SOURCE_SERVER_ARGS: readonly string[] = ["-m", "idfkit_lsp"];
+
+/** Generous, because a first run compiles the server's modules. Nothing waits on the probe. */
+const PROBE_TIMEOUT_MS = 30_000;
+
+/** A server stopped and started as it stands. The source server is replaced, so it is held below. */
 interface ServerHandle {
     readonly id: string;
     readonly client: LanguageClient;
@@ -27,12 +42,18 @@ interface ServerHandle {
 
 const handles: ServerHandle[] = [];
 
+let source: SourceServer | undefined;
+
 /**
  * How long to wait after a stop that fails. vscode-languageclient 9.0.1 force-stops the server 2000 ms
  * after the failed stop, a delay it does not expose, and this is that time plus a margin for the
  * process to be gone.
  */
 const FORCED_STOP_WAIT_MS = 2500;
+
+function waitForForcedStop(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, FORCED_STOP_WAIT_MS));
+}
 
 /**
  * The stop in progress for each client. A second caller joins it, because a client already marked
@@ -59,7 +80,7 @@ function stopServer(client: LanguageClient): Promise<void> {
     }
     const stopped = client
         .stop()
-        .catch(() => new Promise<void>((resolve) => setTimeout(resolve, FORCED_STOP_WAIT_MS)))
+        .catch(waitForForcedStop)
         .finally(() => stopping.delete(client));
     stopping.set(client, stopped);
     return stopped;
@@ -102,10 +123,15 @@ function readDeclaration(extensionPath: string): CapabilityDeclaration | undefin
     }
 }
 
+interface DocumentSelectorEntry {
+    readonly scheme: string;
+    readonly language: string;
+}
+
 function documentSelector(
     declaration: CapabilityDeclaration | undefined,
     serverId: string
-): { scheme: string; language: string }[] {
+): DocumentSelectorEntry[] {
     const server = declaration?.servers.find((s) => s.id === serverId);
     if (!server) {
         return [];
@@ -154,7 +180,7 @@ function resolvePythonPath(extensionPath: string): string {
         return venvPython;
     }
 
-    return configured;
+    return configured || "python3";
 }
 
 /**
@@ -175,10 +201,310 @@ function resolveNodePath(): { command: string; useElectronNode: boolean } {
     return { command: process.execPath, useElectronNode: true };
 }
 
-function startSourceServer(
+type SourceServerProbe =
+    | { readonly runnable: true; readonly level: string }
+    | { readonly runnable: false; readonly reason: string };
+
+/** The last line of what the interpreter wrote, which for a traceback is the line that says why. */
+function lastLine(text: string): string | undefined {
+    return text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== "")
+        .pop();
+}
+
+/**
+ * The working directory of the probe and of the source server, passed explicitly to both.
+ *
+ * This is the selection the language client makes by default: the first workspace folder, when it
+ * is a local directory that exists. A missing directory is excluded because a spawn in it fails
+ * with ENOENT, which cannot be told apart from a missing interpreter.
+ */
+function serverWorkingDirectory(): string | undefined {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (folder?.uri.scheme !== "file") {
+        return undefined;
+    }
+    const directory = folder.uri.fsPath;
+    return fs.existsSync(directory) ? directory : undefined;
+}
+
+/**
+ * Ask an interpreter whether it can run the source server, without starting the server.
+ *
+ * Only the exit status decides. A release older than the flag ignores it and reads protocol from
+ * standard input until end of file, so standard input is closed here: that release exits cleanly
+ * with nothing printed, and is correctly reported as able to run.
+ */
+function probeSourceServer(
+    pythonPath: string,
+    cwd: string | undefined,
+    signal: AbortSignal
+): Promise<SourceServerProbe> {
+    return new Promise((resolve) => {
+        try {
+            const child = execFile(
+                pythonPath,
+                [...SOURCE_SERVER_ARGS, "--version"],
+                {
+                    // `python -m` searches the working directory first, so the answer holds for
+                    // the server launch only if both use the same directory.
+                    cwd,
+                    signal,
+                    timeout: PROBE_TIMEOUT_MS,
+                    windowsHide: true,
+                },
+                (error, stdout, stderr) => {
+                    if (!error) {
+                        resolve({ runnable: true, level: stdout.trim() });
+                    } else if (error.code === "ENOENT") {
+                        resolve({ runnable: false, reason: "the interpreter was not found" });
+                    } else if (error.killed) {
+                        const seconds = PROBE_TIMEOUT_MS / 1000;
+                        resolve({ runnable: false, reason: `no answer within ${seconds} seconds` });
+                    } else {
+                        resolve({ runnable: false, reason: lastLine(stderr) ?? error.message });
+                    }
+                }
+            );
+            child.stdin?.end();
+        } catch (err: unknown) {
+            // Spawning throws rather than calling back on a command it refuses outright.
+            resolve({ runnable: false, reason: err instanceof Error ? err.message : String(err) });
+        }
+    });
+}
+
+/**
+ * The language client, without the two defaults that fail badly for a server dying on startup.
+ *
+ * The library restarts a server that closes during startup, which is the crash loop, and two of its
+ * paths on that failure end in an unhandled rejection: an unawaited `stop()` on a client that is not
+ * running, and a start promise it no longer holds. A server that closes after it has been running
+ * keeps the library's bounded restart.
+ */
+class SourceClient extends LanguageClient {
+    public override createDefaultErrorHandler(maxRestartCount?: number): ErrorHandler {
+        const bounded = super.createDefaultErrorHandler(maxRestartCount);
+        return {
+            error: (error, message, count) => bounded.error(error, message, count),
+            closed: async () => {
+                if (this.state === State.Running) {
+                    return bounded.closed();
+                }
+                // A failed start also arrives here, reported as `State.Stopped`, when the library
+                // ends a server that answered `initialize` with an error. Its owner has already
+                // discarded this client, so a restart would leave a server nothing can stop.
+                //
+                // The library forgets the start promise as soon as this answers. Answering after
+                // the pending start has failed is what lets that failure reach the caller of
+                // `start()`, rather than becoming an unhandled rejection and a false success.
+                await new Promise((resolve) => setImmediate(resolve));
+                return {
+                    action: CloseAction.DoNotRestart,
+                    message: "The source server closed during startup and was not restarted.",
+                    handled: true,
+                };
+            },
+        };
+    }
+
+    public override async stop(timeout?: number): Promise<void> {
+        try {
+            await super.stop(timeout);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            try {
+                this.outputChannel.appendLine(`The source server did not stop cleanly: ${msg}`);
+            } catch {
+                // The channel is closed while the extension host exits, which is when the wait
+                // below matters most.
+            }
+            // A replaced client cannot mistake the forced stop for the loss of its next server, but
+            // an extension host that exits first never runs the forced stop at all.
+            await waitForForcedStop();
+        }
+    }
+}
+
+/**
+ * The source server: probed before it is started, and replaced rather than restarted, because the
+ * interpreter is fixed when a language client is constructed and the setting may have changed.
+ */
+class SourceServer {
+    private client: LanguageClient | undefined;
+    private launchedWith: string | undefined;
+    private unavailable: string | undefined;
+    private pendingNotice: vscode.Disposable | undefined;
+    private settled: Promise<void> = Promise.resolve();
+    private readonly stopping = new AbortController();
+
+    constructor(
+        private readonly context: vscode.ExtensionContext,
+        private readonly selector: DocumentSelectorEntry[],
+        private readonly outputChannel: vscode.OutputChannel,
+        private readonly traceOutputChannel: vscode.OutputChannel
+    ) {}
+
+    /** Begin starting the server, without making the caller wait for the interpreter to answer. */
+    public start(): void {
+        this.settled = this.launch(false);
+    }
+
+    /**
+     * Replace the server. A probe failure on this path is always shown as a notification.
+     *
+     * The client is disposed before `settled` is awaited, because a server that never answers
+     * `initialize` leaves `settled` pending. The library refuses to stop a client that is starting
+     * but still terminates its process two seconds later, which fails that start. `dispose` is used
+     * rather than `stop` because a replaced client must not restart itself.
+     */
+    public restart(): Promise<void> {
+        void this.client?.dispose();
+        this.settled = this.settled.then(async () => {
+            await this.client?.dispose();
+            this.client = undefined;
+            await this.launch(true);
+        });
+        return this.settled;
+    }
+
+    /** The running client once any start in progress has settled, or undefined if there is none. */
+    public async running(): Promise<LanguageClient | undefined> {
+        await this.settled;
+        return this.client?.isRunning() ? this.client : undefined;
+    }
+
+    public async stop(): Promise<void> {
+        this.pendingNotice?.dispose();
+        this.stopping.abort();
+        // Disposed before and after the wait, for the reason given on `restart`.
+        await this.client?.dispose();
+        await this.settled;
+        await this.client?.dispose();
+    }
+
+    /**
+     * Show why no server is running, naming the interpreter of the last launch rather than the
+     * current setting, which may have changed since. Unprompted failures use `noticeOnce`.
+     */
+    public report(): void {
+        const cause =
+            this.unavailable === undefined
+                ? `the source server started with "${this.launchedWith}" is not running`
+                : `"${this.launchedWith}" cannot run the source server (${this.unavailable})`;
+        void vscode.window
+            .showInformationMessage(
+                `idfkit: Python source support is off, because ${cause}. ` +
+                    "Model files are not affected.",
+                "Open Settings",
+                "Open Output"
+            )
+            .then((choice) => {
+                if (choice === "Open Settings") {
+                    void vscode.commands.executeCommand(
+                        "workbench.action.openSettings",
+                        "idfkitLsp.pythonPath"
+                    );
+                } else if (choice === "Open Output") {
+                    this.outputChannel.show();
+                }
+            });
+    }
+
+    private async launch(asked: boolean): Promise<void> {
+        this.pendingNotice?.dispose();
+        this.pendingNotice = undefined;
+        this.unavailable = undefined;
+
+        const pythonPath = resolvePythonPath(this.context.extensionPath);
+        const cwd = serverWorkingDirectory();
+        this.launchedWith = pythonPath;
+        this.outputChannel.appendLine(`Runtime: ${pythonPath}`);
+        this.outputChannel.appendLine(`Command: ${pythonPath} ${SOURCE_SERVER_ARGS.join(" ")}`);
+
+        const probe = await probeSourceServer(pythonPath, cwd, this.stopping.signal);
+        if (this.stopping.signal.aborted) {
+            return;
+        }
+        if (!probe.runnable) {
+            this.unavailable = probe.reason;
+            this.outputChannel.appendLine(`The source server was not started: ${probe.reason}`);
+            if (asked) {
+                this.report();
+            } else {
+                this.noticeOnce(pythonPath);
+            }
+            return;
+        }
+        this.outputChannel.appendLine(`Probe: ${probe.level || "able to run, no level reported"}`);
+
+        const serverOptions: ServerOptions = {
+            command: pythonPath,
+            args: [...SOURCE_SERVER_ARGS],
+            options: { cwd },
+        };
+        const clientOptions: LanguageClientOptions = {
+            documentSelector: this.selector,
+            outputChannel: this.outputChannel,
+            traceOutputChannel: this.traceOutputChannel,
+            // Without this the library adds a notification of its own to the one it always shows
+            // for a failed start, and that one is the only one this path needs.
+            initializationFailedHandler: () => false,
+        };
+        try {
+            this.client = new SourceClient(
+                "idfkitLspSource",
+                "idfkit source server",
+                serverOptions,
+                clientOptions
+            );
+            await this.client.start();
+        } catch (err: unknown) {
+            this.client = undefined;
+            this.unavailable = err instanceof Error ? err.message : String(err);
+            this.outputChannel.appendLine(`The source server failed to start: ${this.unavailable}`);
+        }
+    }
+
+    /**
+     * Show the notification once per interpreter, after a document this server serves is open.
+     *
+     * The client does not determine whether a project uses the library, because that would be
+     * analysis of source in the client. The message is therefore informational rather than an
+     * error, its display is persisted across sessions, and a session with only model files open
+     * does not show it.
+     */
+    private noticeOnce(pythonPath: string): void {
+        const key = `sourceServerNotice:${pythonPath}`;
+        if (this.context.globalState.get<boolean>(key)) {
+            return;
+        }
+        const served = (document: vscode.TextDocument): boolean =>
+            vscode.languages.match(this.selector, document) > 0;
+        const notify = (): void => {
+            void this.context.globalState.update(key, true);
+            this.report();
+        };
+        if (vscode.workspace.textDocuments.some(served)) {
+            notify();
+            return;
+        }
+        this.pendingNotice = vscode.workspace.onDidOpenTextDocument((document) => {
+            if (served(document)) {
+                this.pendingNotice?.dispose();
+                this.pendingNotice = undefined;
+                notify();
+            }
+        });
+    }
+}
+
+function createSourceServer(
     context: vscode.ExtensionContext,
     declaration: CapabilityDeclaration | undefined
-): ServerHandle | undefined {
+): SourceServer | undefined {
     const selector = documentSelector(declaration, "source");
     if (selector.length === 0) {
         return undefined;
@@ -188,54 +514,11 @@ function startSourceServer(
     const traceOutputChannel = vscode.window.createOutputChannel(
         "idfkit: source server (trace)"
     );
-    // Both channels are handed to the extension host here, so an early return below still
-    // disposes of them and a reactivation does not leave a second pair behind.
+    // Both channels are handed to the extension host here, so a reactivation does not leave a
+    // second pair behind.
     context.subscriptions.push(outputChannel, traceOutputChannel);
 
-    const pythonPath = resolvePythonPath(context.extensionPath);
-    outputChannel.appendLine(`Runtime: ${pythonPath}`);
-    outputChannel.appendLine(`Command: ${pythonPath} -m idfkit_lsp`);
-
-    const serverOptions: ServerOptions = {
-        command: pythonPath,
-        args: ["-m", "idfkit_lsp"],
-    };
-
-    const clientOptions: LanguageClientOptions = {
-        documentSelector: selector,
-        outputChannel,
-        traceOutputChannel,
-    };
-
-    const client = new LanguageClient(
-        "idfkitLspSource",
-        "idfkit source server",
-        serverOptions,
-        clientOptions
-    );
-
-    client.start().catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        outputChannel.appendLine(`[ERROR] source server failed to start: ${msg}`);
-        void vscode.window
-            .showErrorMessage(
-                `The idfkit source server failed to start. Is idfkit-lsp installed for "${pythonPath}"?`,
-                "Open Output",
-                "Open Settings"
-            )
-            .then((choice) => {
-                if (choice === "Open Output") {
-                    outputChannel.show();
-                } else if (choice === "Open Settings") {
-                    void vscode.commands.executeCommand(
-                        "workbench.action.openSettings",
-                        "idfkitLsp.pythonPath"
-                    );
-                }
-            });
-    });
-
-    return { id: "source", client, outputChannel };
+    return new SourceServer(context, selector, outputChannel, traceOutputChannel);
 }
 
 function startModelServer(
@@ -312,13 +595,12 @@ function startModelServer(
 export function activate(context: vscode.ExtensionContext): void {
     const declaration = readDeclaration(context.extensionPath);
 
-    for (const handle of [
-        startSourceServer(context, declaration),
-        startModelServer(context, declaration),
-    ]) {
-        if (handle) {
-            handles.push(handle);
-        }
+    source = createSourceServer(context, declaration);
+    source?.start();
+
+    const model = startModelServer(context, declaration);
+    if (model) {
+        handles.push(model);
     }
 
     context.subscriptions.push(
@@ -326,8 +608,8 @@ export function activate(context: vscode.ExtensionContext): void {
             // One server failing to come back must not leave the other stopped or waiting, so the
             // servers restart independently and each restart is reported where that server's output
             // already is.
-            await Promise.all(
-                handles.map(async (handle) => {
+            await Promise.all([
+                ...handles.map(async (handle) => {
                     await stopServer(handle.client);
                     // Deactivation empties the list, and nothing would stop a server started after it.
                     if (!handles.includes(handle)) {
@@ -344,8 +626,9 @@ export function activate(context: vscode.ExtensionContext): void {
                             `The idfkit ${handle.id} server failed to restart: ${msg}`
                         );
                     }
-                })
-            );
+                }),
+                source?.restart(),
+            ]);
         })
     );
 
@@ -353,8 +636,12 @@ export function activate(context: vscode.ExtensionContext): void {
     // opening it is the editor's act. Nothing about the answer is decided here.
     context.subscriptions.push(
         vscode.commands.registerCommand("idfkitLsp.openDocumentation", async () => {
-            const source = handles.find((handle) => handle.id === "source");
             if (!source) {
+                return;
+            }
+            const client = await source.running();
+            if (!client) {
+                source.report();
                 return;
             }
             const objectType = await vscode.window.showInputBox({
@@ -365,7 +652,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
             }
             try {
-                const url = await source.client.sendRequest<string | null>(
+                const url = await client.sendRequest<string | null>(
                     "workspace/executeCommand",
                     {
                         command: "idfkit.openDocumentation",
@@ -388,7 +675,11 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): Thenable<void> | undefined {
-    const stopping = handles.map((handle) => stopServer(handle.client));
+    const stops = handles.map((handle) => stopServer(handle.client));
     handles.length = 0;
-    return Promise.all(stopping).then(() => undefined);
+    if (source) {
+        stops.push(source.stop());
+        source = undefined;
+    }
+    return Promise.all(stops).then(() => undefined);
 }
