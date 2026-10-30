@@ -91,7 +91,7 @@
         "compile": "npm run copy:terminate-script && esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap",
         "compile:model-server": "npm --prefix model-server run build",
         "copy:terminate-script": "node -e \"const fs=require('fs');fs.mkdirSync('client/dist',{recursive:true});fs.copyFileSync('client/node_modules/vscode-languageclient/lib/node/terminateProcess.sh','client/dist/terminateProcess.sh');fs.chmodSync('client/dist/terminateProcess.sh',0o755)\"",
-        "watch": "npm run copy:terminate-script && esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap --watch"
+        "watch": "npm run compile -- --watch"
     },
     "devDependencies": {
         "@types/vscode": "1.90.0",

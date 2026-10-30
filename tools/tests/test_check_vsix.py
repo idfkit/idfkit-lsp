@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -160,6 +161,7 @@ def test_a_missing_file_fails_without_starting_anything(tmp_path: Path, missing:
     assert missing in failures[0]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no executable bit to remove")
 def test_a_terminate_script_that_is_not_executable_fails(tmp_path: Path) -> None:
     tree = _tree(tmp_path)
     (tree.extension / CLIENT_SCRIPT).chmod(0o644)
