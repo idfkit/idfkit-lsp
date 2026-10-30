@@ -209,8 +209,11 @@ jobs:
         working-directory: model-server
 
       # `npm pack` runs `prepack`, which builds the bundle and copies the licence in.
+      # `--pack-destination` does not create the directory it names.
       - name: Pack
-        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
         working-directory: model-server
 
       - name: Install from the tarball
