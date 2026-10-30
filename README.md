@@ -141,8 +141,9 @@ installed distribution rather than from a literal.
 ## Development
 
 ```bash
-make install    # both runtimes
+make install    # both runtimes, the client and the packaging tools
 make check      # the one command a change is held to
+make package    # builds the VS Code extension as idfkit-lsp.vsix
 ```
 
 The repository has four trees: `server/` (the source server, Python), `model-server/` (the model

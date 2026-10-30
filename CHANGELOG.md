@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `make package` builds the VS Code extension from a clean checkout after `make install`, which now
+  installs the root and client dependencies as well. `@vscode/vsce` is an exact-pinned development
+  dependency.
+- The `vsix` CI job builds the extension, unzips it outside the checkout, and fails if its model
+  server does not advertise what `capabilities.json` marks present or warns on start.
+  `tools/check_vsix.py` performs the check, and the protocol suite then runs against the packaged
+  server.
+- CI type-checks the client in a job of its own, and runs the protocol suite on Node 20.9.0.
+
 ### Changed
 
+- `make install` refuses a `server/uv.lock` that is out of date rather than rewriting it.
 - The minimum VS Code version is now 1.90 (previously 1.86). VS Code 1.90 is the first release on
   Electron 29, whose Node 20 runtime is the one the model server runs on by default. VS Code 1.86
   to 1.89 run Node 18, which the `engines.node` of the idfkit packages the model server depends
