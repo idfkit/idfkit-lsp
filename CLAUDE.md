@@ -149,13 +149,15 @@ by trusted publishing, prereleases under `next`.
 
 ## Publishing the extension
 
-The `publish-vsix` job in `release.yml` packages the root `package.json` with `npx @vscode/vsce` at
-an exact version, runs the protocol suite against the unpacked VSIX through `MODEL_SERVER_PACKAGE`,
-attaches the file to the GitHub release, and publishes that file to the Marketplace with
-`--packagePath` and `--oidc`, so no token is stored. A prerelease is skipped, because the Marketplace
-accepts only major.minor.patch. The publisher and its Trusted Publishing policy are a one-time
-prerequisite, stated at the top of the workflow, along with the fallback for a first upload that
-`--oidc` does not accept. The job's `id-token: write` applies to all of its steps, not only Publish.
+Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with
+`npx @vscode/vsce` at an exact version, runs the protocol suite against the unpacked VSIX through
+`MODEL_SERVER_PACKAGE`, uploads the file as an artifact, and attaches it to the GitHub release.
+`publish-vsix` downloads that artifact and publishes it to the Marketplace with `--packagePath` and
+`--oidc`, so no token is stored. Only `publish-vsix` holds `id-token: write`, and it has no checkout
+and no `npm ci`; do not add a step there that installs or runs project code. A prerelease is skipped,
+because the Marketplace accepts only major.minor.patch. The publisher and its Trusted Publishing
+policy are a one-time prerequisite, stated at the top of the workflow, along with the fallback for a
+first upload that `--oidc` does not accept.
 
 ## CI
 

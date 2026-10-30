@@ -25,17 +25,23 @@
 # and the PyPI job is unaffected, because the two jobs do not depend on each other.
 #
 # THE EXTENSION GOES TO THE VS CODE MARKETPLACE FROM THE SAME RELEASE, as `idfkit.idfkit-lsp`. Same
-# rule for the tag, which must match the root `package.json`, and the job depends on neither of the
-# others. `vsce package` builds the VSIX once, and `vsce publish --packagePath` uploads that file
-# without running `vscode:prepublish` again, so the file checked is the file published. The same
-# file is attached to the GitHub release first, for an editor that does not read the Marketplace,
-# so a failed Marketplace upload still leaves it installable.
+# rule for the tag, which must match the root `package.json`, and neither job below depends on the
+# PyPI or npm job. `package-vsix` builds the VSIX once with `vsce package`, checks it, and hands it
+# to `publish-vsix` as an artifact. `vsce publish --packagePath` uploads that file without running
+# `vscode:prepublish` again, so the file checked is the file published. The same file is attached
+# to the GitHub release first, for an editor that does not read the Marketplace, so a failed
+# Marketplace upload still leaves it installable.
 #
-# Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for this job
-# for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE: create the
-# Marketplace publisher with the ID `idfkit`, which is what the root `package.json` names and which
-# cannot be changed afterwards, then add a Trusted Publishing policy on the publisher management
-# page with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`, and no environment.
+# THE TWO JOBS ARE SEPARATE SO THAT `id-token: write` IS HELD ONLY WHERE NO PROJECT DEPENDENCY IS
+# INSTALLED OR RUN. `package-vsix` runs npm's lifecycle scripts and the protocol suite and cannot
+# request an OIDC token. `publish-vsix` can, and has no checkout and no `npm ci`.
+#
+# Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for
+# `publish-vsix` for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE:
+# create the Marketplace publisher with the ID `idfkit`, which is what the root `package.json` names
+# and which cannot be changed afterwards, then add a Trusted Publishing policy on the publisher
+# management page with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`, and no
+# environment. The policy names the workflow file and no job.
 # Until that exists the publish step fails, nothing reaches the Marketplace, and the other two jobs
 # are unaffected. The documentation's `vsce login` verification step prompts for a personal access
 # token, which this route does not use, so that step does not apply.
@@ -174,19 +180,16 @@ jobs:
           esac
           npm publish "$(ls "$RUNNER_TEMP"/pack/*.tgz)" --access public --tag "$tag"
 
-  publish-vsix:
+  package-vsix:
     if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # to attach the VSIX to the release
-      id-token: write # to publish through Marketplace Trusted Publishing
     env:
       VSCE: "@vscode/vsce@4.1.0"
     steps:
       # No credential left in the checkout: this job holds a write token and runs npm's lifecycle
-      # scripts, and only the step that attaches the file is given the token. `id-token: write`
-      # cannot be narrowed the same way: it is granted per job, so those scripts can also request
-      # an OIDC token and exchange it for a Marketplace credential.
+      # scripts, and only the step that attaches the file is given the token.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -264,12 +267,40 @@ jobs:
         env:
           MODEL_SERVER_PACKAGE: ${{ runner.temp }}/unpacked/extension/model-server
 
-      # `--clobber` so that rerunning this job after a failed upload to the Marketplace can succeed.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix/*.vsix
+          if-no-files-found: error
+
+      # `--clobber` so that rerunning this job can succeed once the release holds the file.
       - name: Attach the VSIX to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" "$RUNNER_TEMP"/vsix/*.vsix --clobber --repo "$GITHUB_REPOSITORY"
+
+  # No checkout and no `npm ci`: this job holds `id-token: write`, so nothing from the repository or
+  # its dependency tree runs here. `npx` still fetches vsce's own unlocked transitive dependencies.
+  publish-vsix:
+    needs: package-vsix
+    if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VSCE: "@vscode/vsce@4.1.0"
+    steps:
+      # vsce 4.1.0 declares Node 22 as its floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: ${{ runner.temp }}/vsix
 
       # With `--oidc`, vsce reads no stored token and does not prompt: a failed exchange stops here.
       # The file that was checked is the file published: `--packagePath` does not rebuild.
