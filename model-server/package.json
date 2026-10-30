@@ -37,7 +37,7 @@
     "vscode-languageserver-textdocument": "1.0.14"
   },
   "devDependencies": {
-    "@types/node": "22.10.2",
+    "@types/node": "20.9.0",
     "esbuild": "0.27.3",
     "typescript": "5.7.2",
     "vitest": "2.1.8"

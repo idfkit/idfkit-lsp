@@ -72,12 +72,12 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile && npm run compile:model-server",
-        "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "compile": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap",
         "compile:model-server": "npm --prefix model-server run build",
-        "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch"
+        "watch": "esbuild client/src/extension.ts --bundle --outfile=client/dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap --watch"
     },
     "devDependencies": {
-        "@types/vscode": "^1.90.0",
+        "@types/vscode": "1.90.0",
         "esbuild": "^0.27.3",
         "typescript": "^5.0.0"
     }
