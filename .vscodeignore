@@ -4,6 +4,7 @@
 .vscode/**
 .specify/**
 CLAUDE.md
+CONTRIBUTING.md
 Makefile
 specs/**
 

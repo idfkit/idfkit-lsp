@@ -3,21 +3,56 @@
 Editor support for two different things: Python source that uses the
 [idfkit](https://github.com/idfkit/idfkit) library, and EnergyPlus model text.
 
+## What it does
+
+- **Python files that use idfkit** (`.py`, `.pyi`), through the source server: completion, hover and
+  signature help.
+- **EnergyPlus model files** (`.idf`), through the model server: semantic highlighting, diagnostics,
+  completion, hover and go-to-definition.
+
+The model server is bundled in the extension. The source server is installed separately, as
+described under [Installing](#installing).
+
+## Installing
+
+For the extension, install it from the marketplace. It bundles the model server and needs no
+separate Node install, because it launches the editor's own runtime.
+
+The source server needs a Python interpreter with `idfkit-lsp` installed:
+
+```bash
+pip install idfkit-lsp
+```
+
+Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpreter on your path.
+`idfkitLsp.nodePath` does the same for the model server, and exists for the same reason: an
+environment that is not the one we guessed.
+
+The model server is also published to npm as `@idfkit/language-server`, for editors other than
+VS Code. It needs Node 20 or newer, the floor of the idfkit packages it installs, and brings the
+idfkit library and its language service with it:
+
+```bash
+npm install -g @idfkit/language-server
+```
+
+That puts `idfkit-language-server` on your path. `npx @idfkit/language-server --stdio` runs it
+without installing. The model server reaches the library through the `@idfkit/idfkit` facade; when
+the language service is absent, it reports what to install, in the component's own words, and the
+source server is unaffected.
+
+## What is served, and what is not
+
 Two servers do the work and one thin client starts them. The Python server answers questions about
 Python source. A second server, on the editor's own Node runtime, answers questions about model
 text. Neither reimplements any part of the other, and neither holds knowledge of its own: every
 answer comes from a library that owns the question.
-
-## What is served, and what is not
 
 The block below is generated from [`capabilities.json`](./capabilities.json), which is the single
 record of what each server advertises. Both servers advertise from that file, the client reads it
 for its document selectors, and the test suite asserts it against the servers in both directions. A
 capability the declaration does not carry cannot be advertised, and a request a server answers that
 the declaration does not list fails the build.
-
-Regenerate this block with `make check-declaration` after a change, or check it in CI, which is
-where a readme that has drifted from the servers is caught.
 
 <!-- capabilities:begin -->
 
@@ -67,34 +102,6 @@ Runtime: Node 18 or newer, ESM, launched on the editor's own runtime. Serves `id
 An absence is stated rather than faked. Where a library cannot answer, the server returns nothing:
 never a plausible completion assembled locally, which a user cannot tell apart from a real one.
 
-## Installing
-
-For the extension, install it from the marketplace. It bundles the model server and needs no
-separate Node install, because it launches the editor's own runtime.
-
-The source server needs a Python interpreter with `idfkit-lsp` installed:
-
-```bash
-pip install idfkit-lsp
-```
-
-Point the extension at it with `idfkitLsp.pythonPath` if it is not the interpreter on your path.
-`idfkitLsp.nodePath` does the same for the model server, and exists for the same reason: an
-environment that is not the one we guessed.
-
-The model server is also published to npm as `@idfkit/language-server`, for editors other than
-VS Code. It needs Node 20 or newer, the floor of the idfkit packages it installs, and brings the
-idfkit library and its language service with it:
-
-```bash
-npm install -g @idfkit/language-server
-```
-
-That puts `idfkit-language-server` on your path. `npx @idfkit/language-server --stdio` runs it
-without installing. The model server reaches the library through the `@idfkit/idfkit` facade; when
-the language service is absent, it reports what to install, in the component's own words, and the
-source server is unaffected.
-
 ## Using it from an editor that is not the targeted one
 
 Everything a user sees comes from a server, so a second editor costs a launch configuration and
@@ -138,27 +145,9 @@ idfkit-lsp/versions
 It reports its own version and the resolved level of every library it imports, read from the
 installed distribution rather than from a literal.
 
-## Development
+## Contributing
 
-```bash
-make install    # both runtimes
-make check      # the one command a change is held to
-```
-
-The repository has four trees: `server/` (the source server, Python), `model-server/` (the model
-server, TypeScript), `client/` (the editor client), and `tests/protocol/` (one suite, both servers,
-no editor). Two declared records sit at the root: `capabilities.json` and `levels.json`.
-
-Three checks hold the rules up before review rather than at review:
-
-| Check | What it rejects |
-| --- | --- |
-| `make check-declaration` | a capability advertised, documented, or answered that the declaration does not carry |
-| `make check-levels` | a library resolved without an exact pin, or a declared level that disagrees with the file stating it |
-| `make check-knowledge` | a schema table, a grammar pattern, or arithmetic over model text outside the one module permitted it |
-
-`.specify/memory/constitution.md` says why each of those exists. `CLAUDE.md` covers the layout and
-the day-to-day commands.
+Development setup and the repository checks are in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Licence
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Marketplace listing is written for users. The extension description is one sentence, the
+  manifest carries `keywords`, `homepage` and `bugs`, and the readme states what the extension does
+  and how to install it before the capability tables. Development material moved to
+  `CONTRIBUTING.md`.
+
 ## [0.4.0] - 2026-10-30
 
 The model server can now be installed from npm, so editors other than VS Code can run it without
