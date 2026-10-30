@@ -7,22 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-30
+
+The model server can now be installed from npm, so editors other than VS Code can run it without
+cloning this repository. Neither server gains or loses a capability.
+
 ### Added
 
 - The model server is published to npm as `@idfkit/language-server`, so an editor other than VS Code
   can install it without cloning this repository. Installing it puts `idfkit-language-server` on
   the path; run it with `--stdio`. The package carries its own copy of `capabilities.json`, made
   from the root file each time it is packed. Releases publish it beside the PyPI package, from the
-  same tag (#33).
+  same tag (#33, #34).
 
 ### Changed
 
 - The model server depends on `@idfkit/idfkit` 0.4.0, pinned exactly, and reaches the library and
   its language service only through that name. It no longer falls back to `@idfkit/core` and
   `@idfkit/language` under their own names, which it did while the facade was not on npm. A
-  missing install now asks for `@idfkit/idfkit` and `@idfkit/language`.
+  missing install now asks for `@idfkit/idfkit` and `@idfkit/language` (#34).
 - The model server's package was renamed from `@idfkit/lsp-model-server` to
-  `@idfkit/language-server`, which is also the name it reports in `serverInfo`.
+  `@idfkit/language-server`, which is also the name it reports in `serverInfo` (#34).
 
 ## [0.3.0] - 2026-10-19
 
@@ -90,7 +95,8 @@ The first release, published on GitHub with a VS Code extension.
   subscripts, method calls and loops.
 - An "Open Documentation" command in the VS Code extension.
 
-[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/idfkit/idfkit-lsp/releases/tag/v0.1.0
