@@ -15,12 +15,14 @@ knowledge. That sentence decides most questions here.
   knows about EnergyPlus comes from the installed `idfkit`.
 - **Model server** (`model-server/`): TypeScript, ESM, on the editor's own Node runtime. Serves
   EnergyPlus model text by wrapping the `@idfkit/language` service, translating positions and
-  nothing else. Peer of the source server, not a subordinate.
+  nothing else. Peer of the source server, not a subordinate. Bundled in the VS Code extension and
+  published to npm as `@idfkit/language-server` for every other editor.
 - **Client** (`client/`): the VS Code extension. Locates and starts each server, declares which
   documents each serves, surfaces server output. Nothing else lives here.
 - **Protocol suite** (`tests/protocol/`): one suite, both servers, protocol in and protocol out,
   no editor anywhere.
-- **Checks** (`tools/`): the three gates that hold the constitution up before review.
+- **Checks** (`tools/`): the three gates that hold the constitution up before review, plus
+  `check_package.py`, which checks the packed npm tarball and its command (CI and release only).
 
 ## The two declared records
 
@@ -93,8 +95,9 @@ Pipeline: **document change → AST analysis → handler response**.
 
 1. `main.ts` — protocol wiring over stdio, advertising from `capabilities.ts`
 2. `capabilities.ts` — the TypeScript loader for `capabilities.json`, same rules as the Python one
-3. `service.ts` — the single import of `@idfkit/language`, through the `@idfkit/idfkit/language` subpath,
-   with the facade's guard message passed through unchanged when the component is absent
+3. `service.ts` — the single import of the language service, through the `@idfkit/idfkit/language`
+   subpath and no other name, with the facade's guard message passed through unchanged when the
+   component is absent. `inputs.ts` reaches the rest of the library through `@idfkit/idfkit` the same way
 4. `documents.ts` — one service handle per open document, fed edits under incremental sync
 5. `positions.ts` — **the only arithmetic over model text in this repository**, and the single
    declared exception to Principle I. `tools/check_knowledge.py` exempts it by name
@@ -126,18 +129,30 @@ form. The reason is required, which is what keeps suppressions countable.
 
 ## The external dependency
 
-`@idfkit/language` (feature 005 of the unification) is not published. The model server is written
-against its contracted surface, recorded in
-`specs/001-two-server-editor-support/contracts/language-service-expected.md`, and reaches it through
-a guard. Until it ships, the model server's five model-text answers are `absent_temporary` in
-`capabilities.json`, and the paths that run are the guard path and the pure translations. When it
-ships, those entries flip to `present` and the protocol suite's skipped groups start running.
+`@idfkit/language` (feature 005 of the unification) is published, and so is the facade
+`@idfkit/idfkit` that exposes it at `@idfkit/idfkit/language`. Both are exact dependencies of the
+model server, which is written against the contracted surface recorded in
+`specs/001-two-server-editor-support/contracts/language-service-expected.md` and reaches it only
+through the facade. The model server's five model-text answers are `present` in
+`capabilities.json`. The guard path still runs, and is still tested, for an install where the
+component is missing.
+
+## Publishing the model server
+
+`model-server/package.json` is the npm package `@idfkit/language-server`, with the command
+`idfkit-language-server`. `prepack` copies the root `capabilities.json` into `dist/` and the root
+`LICENSE` into the package, and `postpack` removes both, so the checkout always reads the root
+declaration. The `packed` job in `ci.yml` installs the tarball into an empty directory, runs
+`tools/check_package.py`, and runs the protocol suite against that install through
+`MODEL_SERVER_PACKAGE`. The `publish-npm` job in `release.yml` publishes from the same tag as PyPI,
+by trusted publishing, prereleases under `next`.
 
 ## CI
 
 `.github/workflows/ci.yml`: lint, typecheck (both languages), the three declaration checks, the
-source server across Python 3.10 to 3.13, the model server, and the protocol suite on Linux and
-Windows. Pre-commit runs ruff, pyright, and the three checks.
+source server across Python 3.10 to 3.13, the model server, the protocol suite on Linux and
+Windows, and the protocol suite again against the packed npm tarball. Pre-commit runs ruff,
+pyright, and the three checks.
 
 ## The consumer register
 
@@ -146,10 +161,11 @@ idfkit-conformance, read at the governance tag pinned in `.github/workflows/ci.y
 consumer with two Resolutions, one per server, and the two say nothing about each other.
 
 - **Where the levels live**: idfkit in `server/pyproject.toml` and again in `levels.json`;
-  `@idfkit/core` and `@idfkit/language` in `model-server/package.json` and again in `levels.json`. The
-  register points at all of them and requires the declarations of one release to agree, which
-  `make check-levels` already enforces here. The model server comes through the scoped packages, a
-  supported entry point; nothing asks it to move to the shared name.
+  `@idfkit/idfkit`, `@idfkit/core` and `@idfkit/language` in `model-server/package.json` and again in
+  `levels.json`. The register points at the manifest and requires the declarations of one release to
+  agree, which `make check-levels` already enforces here. The model server imports only through the
+  shared name, and pins the scoped packages beside it for exact levels and their types. The register
+  reads the door from those runtime dependencies, so it records `scoped`.
 - **Self-check**: the `consumer-register` job in `ci.yml` calls `check-consumer.yml` at that tag. It
   fails when a level moves to a file the register does not point at, when a new dependency on either
   library appears unregistered, or when the entry point changes. Bumping a level needs no register

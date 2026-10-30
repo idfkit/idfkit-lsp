@@ -30,6 +30,7 @@ EXPECTED_MEMBERS = frozenset(
     {
         "package/package.json",
         "package/LICENSE",
+        "package/README.md",
         "package/dist/main.js",
         "package/dist/capabilities.json",
     }
