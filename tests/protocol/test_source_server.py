@@ -19,6 +19,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
+from .harness import ProtocolTimeout
+
 if TYPE_CHECKING:
     from idfkit_lsp.capabilities import ServerDeclaration
 
@@ -27,6 +31,10 @@ if TYPE_CHECKING:
 _LANGUAGE_ID = "python"
 
 _VERSIONS_REQUEST = "idfkit-lsp/versions"
+_PUBLISHED_DIAGNOSTICS = "textDocument/publishDiagnostics"
+
+# How long to wait before concluding that the server sent nothing unprompted.
+_QUIET_SECONDS = 2.0
 
 
 def _open(client: ProtocolClient, uri: str, text: str) -> None:
@@ -139,6 +147,28 @@ class TestSignatureHelp:
         signatures = result["signatures"]
         assert len(signatures) > 0
         assert '"Zone"' in signatures[0]["label"]
+
+
+class TestNothingIsPublished:
+    """The declaration records published diagnostics as permanently absent on this server.
+
+    The declaration probe in ``test_declaration.py`` asks about one blank document, which gives a
+    server nothing to report. This test opens text with a name the schema does not hold, and it
+    accepts no message about any document, because this server has none to send.
+    """
+
+    def test_the_server_publishes_nothing_about_source_it_holds(
+        self, source_server: ProtocolClient
+    ) -> None:
+        uri = "file:///test_published.py"
+        _open(
+            source_server,
+            uri,
+            'from idfkit import load_idf\ndoc = load_idf("x.idf")\ndoc["NoSuchObjectType"]',
+        )
+
+        with pytest.raises(ProtocolTimeout):
+            source_server.await_notification(_PUBLISHED_DIAGNOSTICS, timeout=_QUIET_SECONDS)
 
 
 class TestVersions:

@@ -60,7 +60,7 @@ make check-knowledge   # no schema table, grammar pattern, or model-text offset 
 
 make test              # Source server unit tests
 make test-model        # Model server unit tests
-make test-protocol     # Build the model server, then drive both servers, no editor, no skips (ARGS=... passes through)
+make test-protocol     # Build the model server, then drive both servers, no editor, failing on anything missing (ARGS=... passes through)
 make bench-protocol    # An answer at a cursor, measured at the protocol boundary
 make build             # Bundle the client and the model server
 make build-model       # Bundle the model server alone

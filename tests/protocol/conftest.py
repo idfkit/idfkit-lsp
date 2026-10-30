@@ -36,10 +36,9 @@ than a missing component, so where the model server would otherwise be skipped i
 missing into a failure, whichever server it concerns. ``make test-protocol`` sets it, and so does
 ``ci.yml``, so that a passing gate shows these tests ran. A direct ``pytest`` run from a checkout
 leaves it unset and keeps the skip, which names what is missing: running one source server test
-should not require a bundle. The variable is named rather than inferred from ``CI``, because the
-reusable rehearsal in idfkit-conformance also runs in continuous integration, with only the half of
-the repository it is rehearsing installed. A skip for a capability the declaration records as absent
-is not something missing, and it stays a skip.
+should not require a bundle. The variable is named rather than inferred from ``CI``, so that each
+caller states the requirement and running in continuous integration does not imply it. A skip for a
+capability the declaration records as absent is not something missing, and it stays a skip.
 """
 
 from __future__ import annotations
@@ -281,9 +280,9 @@ def source_server(source_server_description: ServerDescription) -> Iterator[Prot
 
 @pytest.fixture(scope="session")
 def model_server(candidate_builds: CandidateBuilds) -> Iterator[ProtocolClient]:
-    """A started, initialized model server, skipped while it has nothing to answer from.
+    """A started, initialized model server, which needs something to answer from.
 
-    Two things must be present and the skip names whichever is not, both of them when both are:
+    Two things must be present and the message names whichever is not, both of them when both are:
     the bundle this repository builds, and the language service that bundle reads every answer
     from. In a direct run from a checkout neither absence is a failure, because neither is this
     repository being wrong: the bundle is built by ``make build-model`` and the component by
@@ -315,8 +314,8 @@ def declaration() -> Any:
     """The capability declaration, loaded by the loader the servers themselves read it with.
 
     Imported inside the fixture so that collection succeeds while the loader is still being
-    written, and so that its absence reads as a skip naming the loader rather than an error
-    naming this file.
+    written, and so that its absence reads as a skip or, in a run that must be complete, a failure
+    naming the loader rather than an error naming this file.
     """
     try:
         from idfkit_lsp import capabilities as loader

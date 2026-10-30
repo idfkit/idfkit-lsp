@@ -7,14 +7,14 @@ passing while the gate quietly goes back to skipping.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from .conftest import MODEL_SERVER_PACKAGE, REPOSITORY_ROOT, REQUIRE_FULL_SUITE, skip_or_fail
 
-if TYPE_CHECKING:
-    from pathlib import Path
+# The spellings that skip a test without passing through ``skip_or_fail``.
+_DIRECT_SKIPS = ("pytest.skip(", "pytest.mark.skip", "pytest.importorskip(")
 
 
 @pytest.fixture
@@ -54,6 +54,32 @@ class TestTheGateTurnsTheRuleOn:
         assert f"test-protocol: export {REQUIRE_FULL_SUITE} := 1" in makefile
         assert "test-protocol: build-model" in makefile
 
-    def test_continuous_integration_requires_a_complete_run(self) -> None:
+    def test_the_command_a_change_is_held_to_runs_the_protocol_suite(self) -> None:
+        makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+        check = next(line for line in makefile.splitlines() if line.startswith("check:"))
+        assert "test-protocol" in check.partition("##")[0].split()
+
+    def test_continuous_integration_requires_a_complete_run_in_every_job(self) -> None:
         workflow = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
-        assert f'{REQUIRE_FULL_SUITE}: "1"' in workflow.read_text(encoding="utf-8")
+        text = workflow.read_text(encoding="utf-8")
+        assert f'\nenv:\n  {REQUIRE_FULL_SUITE}: "1"\n' in text
+
+
+class TestNoSkipGoesAroundTheRule:
+    def test_only_the_rule_and_a_declared_absence_skip_directly(self) -> None:
+        """A direct skip stays a skip under ``REQUIRE_FULL_SUITE``, so each one has to be counted.
+
+        ``conftest.py`` holds the rule's own skip. ``test_budget.py`` skips a capability the
+        declaration records as absent. A new entry either goes through ``skip_or_fail`` or is
+        another declared absence, and this count is changed only in the second case.
+        """
+        suite = REPOSITORY_ROOT / "tests" / "protocol"
+        found: dict[str, int] = {}
+        for path in sorted(suite.glob("*.py")):
+            if path.name == Path(__file__).name:
+                continue
+            text = path.read_text(encoding="utf-8")
+            count = sum(text.count(form) for form in _DIRECT_SKIPS)
+            if count:
+                found[path.name] = count
+        assert found == {"conftest.py": 1, "test_budget.py": 1}
