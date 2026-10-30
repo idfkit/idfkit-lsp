@@ -166,6 +166,18 @@ runtime dependency of the model server is compiled into `dist/main.js`, but a th
 dependency of an `@idfkit` package is not, because those packages are external. A new package of
 either kind that is not bundled needs its own line there.
 
+## Publishing the extension
+
+Two jobs in `release.yml` do this. `package-vsix` packages the root `package.json` with
+`npx @vscode/vsce` at an exact version, runs the protocol suite against the unpacked VSIX through
+`MODEL_SERVER_PACKAGE`, uploads the file as an artifact, and attaches it to the GitHub release.
+`publish-vsix` downloads that artifact and publishes it to the Marketplace with `--packagePath` and
+`--oidc`, so no token is stored. Only `publish-vsix` holds `id-token: write`, and it has no checkout
+and no `npm ci`; do not add a step there that installs or runs project code. A prerelease is skipped,
+because the Marketplace accepts only major.minor.patch. The publisher and its Trusted Publishing
+policy are a one-time prerequisite, stated at the top of the workflow, along with the fallback for a
+first upload that `--oidc` does not accept.
+
 ## CI
 
 `.github/workflows/ci.yml`: lint, typecheck (both languages, and the client in a job of its own,
