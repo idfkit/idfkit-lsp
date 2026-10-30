@@ -73,7 +73,7 @@ Runtime: Python 3.10 through 3.13, pygls over stdio. Serves `python` (`.py`, `.p
 
 ### The model server
 
-Runtime: Node 18 or newer, ESM, launched on the editor's own runtime. Serves `idf` (`.idf`).
+Runtime: Node 20 or newer, ESM, launched on the editor's own runtime. Serves `idf` (`.idf`).
 
 | Request | State | Note |
 | --- | --- | --- |

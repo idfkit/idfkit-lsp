@@ -7,12 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `make package` builds the VS Code extension from a clean checkout after `make install`, which now
+  installs the root and client dependencies as well. `@vscode/vsce` is an exact-pinned development
+  dependency.
+- The `vsix` CI job builds the extension, unzips it outside the checkout, and fails if its model
+  server does not advertise what `capabilities.json` marks present or warns on start.
+  `tools/check_vsix.py` performs the check, and the protocol suite then runs against the packaged
+  server.
+- CI type-checks the client in a job of its own, and runs the protocol suite on Node 20.9.0.
+
 ### Changed
 
 - The Marketplace listing is written for users. The extension description is one sentence, the
   manifest carries `keywords`, `homepage` and `bugs`, and the readme states what the extension does
   and how to install it before the capability tables. Development material moved to
   `CONTRIBUTING.md`.
+- `make install` refuses a `server/uv.lock` that is out of date rather than rewriting it.
+- The minimum VS Code version is now 1.90 (previously 1.86). VS Code 1.90 is the first release on
+  Electron 29, whose Node 20 runtime is the one the model server runs on by default. VS Code 1.86
+  to 1.89 run Node 18, which the `engines.node` of the idfkit packages the model server depends
+  on excludes.
+- The minimum Node version of the npm package `@idfkit/language-server` is now 20 (previously 18),
+  which matches `engines.node` in `@idfkit/core`, `@idfkit/idfkit` and `@idfkit/language` 0.4.0.
+  `capabilities.json` and the readme state the same floor, and the bundle targets `node20`.
+- `.vscodeignore` is an allowlist, so a new file in the repository stays out of the VSIX unless a
+  line names it. Agent instructions, the Python server's source, tool configuration, `levels.json`
+  and the source maps of the two bundles no longer ship, and neither does anything under `.claude/`,
+  including a git worktree there.
+
+### Fixed
+
+- The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
+  contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
+  advertised no model text capability. The prepublish step now installs the locked dependencies of
+  the client and the model server, and `.vscodeignore` keeps `@idfkit/idfkit`, `@idfkit/core`,
+  `@idfkit/language` and `@idfkit/schemas` while leaving every other package in
+  `model-server/node_modules` out. The npm package `@idfkit/language-server` is unchanged.
 
 ## [0.4.0] - 2026-10-30
 

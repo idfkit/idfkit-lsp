@@ -71,6 +71,24 @@ jobs:
       - run: npm run typecheck
         working-directory: model-server
 
+  # A job of its own rather than a step of `make typecheck`: the bump workflows run `make check`
+  # and install only the model server's npm dependencies.
+  typecheck-client:
+    name: Type Check (client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+        working-directory: client
+
+      - run: npx --no-install tsc -p . --noEmit
+        working-directory: client
+
   declaration:
     name: Capability declaration
     runs-on: ubuntu-latest
@@ -166,9 +184,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "server/uv.lock"
 
+      # The oldest Node the model server is run on, so a library or a bundle that needs a newer one
+      # fails here rather than in an editor.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "20.9.0"
 
       - run: uv python install ${{ matrix.python-version }}
 
@@ -237,3 +257,44 @@ jobs:
           uv run --project server python -m pytest tests/protocol -v -rs
         env:
           MODEL_SERVER_PACKAGE: ${{ runner.temp }}/consumer/node_modules/@idfkit/language-server
+
+  # The extension as a user installs it: built through the documented path from a clean checkout,
+  # unzipped into a directory that has never seen this checkout, and started from there. `packed`
+  # covers only the npm tarball, and the VSIX is assembled by a different tool from different rules.
+  vsix:
+    name: Packaged extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: make install
+
+      - name: Package
+        run: |
+          mkdir -p "$RUNNER_TEMP/vsix"
+          make package VSIX="$RUNNER_TEMP/vsix/idfkit-lsp.vsix"
+
+      - name: Unzip outside the checkout
+        run: unzip -q "$RUNNER_TEMP/vsix/idfkit-lsp.vsix" -d "$RUNNER_TEMP/unpacked"
+
+      - name: The VSIX carries what the client reads, and its model server advertises the declaration
+        run: >-
+          uv run --project server python -m tools.check_vsix
+          --extension "$RUNNER_TEMP/unpacked/extension"
+
+      # Without the bundle in the checkout, so nothing can quietly fall back to it.
+      - name: Protocol suite against the packaged model server
+        run: |
+          rm -rf model-server/dist
+          uv run --project server python -m pytest tests/protocol -v -rs
+        env:
+          MODEL_SERVER_PACKAGE: ${{ runner.temp }}/unpacked/extension/model-server
