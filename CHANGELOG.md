@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The README opens with the idfkit identity header at `identity-2026.1`: the mark, the
+- The README opens with the idfkit identity header at `identity-2026.2`: the mark, the
   repository's one sentence, the family links and the badge row. The `Identity` workflow
   (`.github/workflows/check-identity.yml`) holds the header to that tag on every pull request.
+- `@idfkit/language-server` on npm and `idfkit-lsp` on PyPI open with the package header. The PyPI
+  package gains a README, since its page had no description.
 - `python -m idfkit_lsp --version` prints the source server's level and exits. It answers only
   after the server and its libraries have loaded, so its exit status says whether an interpreter
   can run the server.
