@@ -1,4 +1,18 @@
-# idfkit Language Support
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/idfkit/idfkit-brand/identity-2026.4/marks/mark-on-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/idfkit/idfkit-brand/identity-2026.4/marks/mark-on-light.svg">
+    <img alt="idfkit" width="72" src="https://raw.githubusercontent.com/idfkit/idfkit-brand/identity-2026.4/marks/tile.png">
+  </picture>
+</p>
+
+# idfkit-lsp
+
+A language server and VS Code extension for EnergyPlus development with idfkit.
+
+[idfkit](https://idfkit.com) · [Developers](https://developers.idfkit.com) · [EnergyPlus docs](https://docs.idfkit.com) · [Envelop](https://app.idfkit.com) · [MCP](https://mcp.idfkit.com) · [Shoebox](https://shoebox.idfkit.com) · [GitHub](https://github.com/idfkit)
+
+[![Release](https://img.shields.io/github/v/release/idfkit/idfkit-lsp)](https://github.com/idfkit/idfkit-lsp/releases) [![Build status](https://img.shields.io/github/actions/workflow/status/idfkit/idfkit-lsp/ci.yml?branch=main)](https://github.com/idfkit/idfkit-lsp/actions/workflows/ci.yml?query=branch%3Amain) [![License](https://img.shields.io/github/license/idfkit/idfkit-lsp)](https://github.com/idfkit/idfkit-lsp/blob/main/LICENSE)
 
 Editor support for two different things: Python source that uses the
 [idfkit](https://github.com/idfkit/idfkit) library, and EnergyPlus model text.
