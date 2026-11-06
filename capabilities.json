@@ -126,12 +126,12 @@
           "request": "textDocument/signatureHelp",
           "state": "absent_permanent",
           "reason": "Signature help describes a call in a programming language. Model text has no calls, so there is no signature to help with.",
-          "instead": "Hover on a field, once the language service ships, reports what the schema says about it."
+          "instead": "Hover on a field, which reports what the schema says about it."
         },
         {
           "request": "workspace/executeCommand",
           "state": "absent_permanent",
-          "reason": "The one command this repository exposes resolves a documentation address for a Python object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor.",
+          "reason": "The one server command in this repository, `idfkit.openDocumentation`, resolves a documentation address for an EnergyPlus object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor.",
           "instead": "The source server, which answers workspace/executeCommand for the documentation lookup."
         }
       ]
