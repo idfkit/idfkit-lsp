@@ -54,9 +54,23 @@ expanded there:
 }
 ```
 
-Then run **idfkit: Restart Language Servers**. Without the setting, the extension uses `python3`.
+Then run **idfkit: Restart Language Servers**. A value that is relative and starts with `.` is
+resolved against the first workspace folder. When the setting is empty or left at its default,
+`python3`, the extension uses `server/.venv` inside the extension's own directory if that
+interpreter exists, which is the case in a development checkout, and otherwise `python3`.
 `idfkitLsp.nodePath` does the same for the model server, and exists for the same reason: an
 environment that is not the one we guessed.
+
+The extension contributes two commands. **idfkit: Restart Language Servers** restarts both
+servers. **idfkit: Open Documentation** asks for an EnergyPlus object type, sends the source
+server's `idfkit.openDocumentation` command, and opens the address it returns; it needs the source
+server to be running.
+
+The manifest also declares `idfkitLsp.trace.server` (`off`, `messages` or `verbose`). The language
+client reads its trace level from its own identifier, so protocol tracing is set with
+`idfkitLspSource.trace.server` for the source server and `idfkitLspModel.trace.server` for the model
+server. The trace appears in the **idfkit: source server (trace)** and
+**idfkit: model server (trace)** output channels.
 
 Before starting the source server, the extension runs `<interpreter> -m idfkit_lsp --version`. If
 that fails, the extension does not start the server, records the reason in the
@@ -121,8 +135,8 @@ Runtime: Node 20 or newer, ESM, launched on the editor's own runtime. Serves `id
 | `textDocument/completion` | present |   |
 | `textDocument/hover` | present |   |
 | `textDocument/definition` | present |   |
-| `textDocument/signatureHelp` | absent, permanent | Signature help describes a call in a programming language. Model text has no calls, so there is no signature to help with. Instead: Hover on a field, once the language service ships, reports what the schema says about it. |
-| `workspace/executeCommand` | absent, permanent | The one command this repository exposes resolves a documentation address for a Python object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor. Instead: The source server, which answers workspace/executeCommand for the documentation lookup. |
+| `textDocument/signatureHelp` | absent, permanent | Signature help describes a call in a programming language. Model text has no calls, so there is no signature to help with. Instead: Hover on a field, which reports what the schema says about it. |
+| `workspace/executeCommand` | absent, permanent | The one server command in this repository, `idfkit.openDocumentation`, resolves a documentation address for an EnergyPlus object type, which is the source server's question. This server has no command of its own and adding one would be logic that exists for one editor. Instead: The source server, which answers workspace/executeCommand for the documentation lookup. |
 
 <!-- capabilities:end -->
 
