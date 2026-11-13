@@ -37,19 +37,19 @@
 # request an OIDC token. `publish-vsix` can, and has no checkout and no `npm ci`.
 #
 # Trusted publishing and no token here too: vsce exchanges the OIDC token GitHub mints for
-# `publish-vsix` for a Marketplace credential that expires after 15 minutes. PREREQUISITE, ONCE:
-# create the Marketplace publisher with the ID `idfkit`, which is what the root `package.json` names
-# and which cannot be changed afterwards, then add a Trusted Publishing policy on the publisher
-# management page with owner `idfkit`, repository `idfkit-lsp` and workflow `release.yml`, and no
-# environment. The policy names the workflow file and no job.
-# Until that exists the publish step fails, nothing reaches the Marketplace, and the other two jobs
-# are unaffected. The documentation's `vsce login` verification step prompts for a personal access
+# `publish-vsix` for a Marketplace credential that expires after 15 minutes. The Marketplace
+# publisher `idfkit`, which is what the root `package.json` names and which cannot be changed, exists,
+# and holds a Trusted Publishing policy with owner `idfkit`, repository `idfkit-lsp` and workflow
+# `release.yml`, and no environment. The policy names the workflow file and no job. Without that
+# policy the token exchange fails, nothing reaches the Marketplace, and the other two jobs are
+# unaffected. The documentation's `vsce login` verification step prompts for a personal access
 # token, which this route does not use, so that step does not apply.
 #
-# THE FIRST UPLOAD IS UNVERIFIED. The documentation does not say whether `--oidc` works for the
-# first upload of a new extension. If the Marketplace refuses it, the documented fallback is to
-# upload the VSIX attached to the release on the publisher management page, by hand. Later releases
-# then publish through this job.
+# `--oidc` WORKS FOR THE FIRST UPLOAD OF A NEW EXTENSION. v0.5.0 created `idfkit.idfkit-lsp` on the
+# Marketplace through this job, with no manual upload. A policy created or edited shortly before a
+# run can be refused with 401 Unauthorized ("The token could not be exchanged for the specified
+# publisher"); rerunning the failed job once the policy has taken effect publishes the VSIX already
+# attached to the release, and `--skip-duplicate` makes a rerun after a success harmless.
 #
 # A PRERELEASE IS SKIPPED, NOT SENT TO THE PRE-RELEASE CHANNEL. The Marketplace accepts only
 # major.minor.patch, and `vsce package` does not say so: only `vsce publish` refuses a suffix. The
