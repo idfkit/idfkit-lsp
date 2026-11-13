@@ -14,6 +14,9 @@
 !CHANGELOG.md
 !LICENSE
 
+# The Marketplace icon: marks/tile.png from idfkit-brand at identity-2026.5, the tag the README pins.
+!images/icon.png
+
 # The declaration both the client and the model server read at run time, from this location.
 !capabilities.json
 

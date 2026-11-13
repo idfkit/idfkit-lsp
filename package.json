@@ -5,6 +5,7 @@
     "version": "0.5.0",
     "publisher": "idfkit",
     "license": "MIT",
+    "icon": "images/icon.png",
     "homepage": "https://github.com/idfkit/idfkit-lsp#readme",
     "bugs": {
         "url": "https://github.com/idfkit/idfkit-lsp/issues"

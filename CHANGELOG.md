@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The VS Code extension carries an icon on the Marketplace listing: `marks/tile.png` from
+  idfkit-brand at `identity-2026.5`, the tile the README header already uses.
+
 ## [0.5.0] - 2026-11-13
 
 The VS Code extension is now packaged with the language service it needs, published to the Visual
