@@ -114,6 +114,24 @@ jobs:
       - name: Publish
         run: uv publish --trusted-publishing always dist/*
 
+  # Offer the idfkit level this release pins to every consumer that resolves idfkit through idfkit-lsp
+  # (idfkit-plugin), as idfkit-mcp's on-release-main.yml does for its own. Until this job existed,
+  # nothing called notify-dependents.yml, so no idfkit-lsp release was ever offered: v0.5.0 and v0.5.1
+  # shipped on idfkit 1.2.0 and the plugin's .lsp.json stayed at 0.4.0, on idfkit 1.1.1.
+  #
+  # It needs the PyPI job only. notify-dependents.yml waits until PyPI serves this version, because a
+  # dependent's order check looks the release up there; npm and the Marketplace play no part in it. A
+  # prerelease is not offered, for the reason the Marketplace jobs skip one: the dependents would pin
+  # a version that is not a release of the server. It needs the APP_ID and APP_PRIVATE_KEY secrets
+  # idfkit and idfkit-mcp use, and without them it fails, naming them, rather than offering nothing.
+  notify-dependents:
+    needs: publish
+    if: ${{ !github.event.release.prerelease && !contains(github.event.release.tag_name, '-') }}
+    uses: ./.github/workflows/notify-dependents.yml
+    with:
+      version: ${{ github.event.release.tag_name }}
+    secrets: inherit
+
   publish-npm:
     runs-on: ubuntu-latest
     permissions:

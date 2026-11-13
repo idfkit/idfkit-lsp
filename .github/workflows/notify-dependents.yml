@@ -1,8 +1,9 @@
 # Offer the idfkit level this release pins to every consumer that resolves idfkit through this server
 # (feature 004, T111, FR-020).
 #
-# THIS REPOSITORY HAS NO RELEASE WORKFLOW YET, and is about to publish its first release to PyPI. Call
-# this from that workflow with `needs:` on its publish job, or dispatch it by hand after a release.
+# release.yml calls this once its PyPI job has published a release (not a prerelease). Dispatch it by
+# hand, with the release's version, to offer a release again: one published before that call existed
+# (v0.5.0, v0.5.1), or one whose offer failed.
 #
 # WHY THIS EXISTS. idfkit's notify-downstream.yml dispatches in waves, and wave 2, the consumers that
 # deliver this server to a person (idfkit-plugin), is rejected on every idfkit

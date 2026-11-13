@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Publishing a release now offers its idfkit level to the consumers that deliver this server
+  (idfkit-plugin): `release.yml` calls `notify-dependents.yml` after the PyPI job, as idfkit-mcp's
+  release does. Nothing called it before, so v0.5.0 and v0.5.1 were never offered and the plugin
+  kept `idfkit-lsp==0.4.0`. A prerelease is not offered.
+
 ## [0.5.1] - 2026-11-13
 
 The VS Code extension gains its Marketplace icon. Neither server changes; the Python and npm
