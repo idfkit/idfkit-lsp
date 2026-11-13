@@ -175,9 +175,9 @@ Two jobs in `release.yml` do this. `package-vsix` packages the root `package.jso
 `publish-vsix` downloads that artifact and publishes it to the Marketplace with `--packagePath` and
 `--oidc`, so no token is stored. Only `publish-vsix` holds `id-token: write`, and it has no checkout
 and no `npm ci`; do not add a step there that installs or runs project code. A prerelease is skipped,
-because the Marketplace accepts only major.minor.patch. The publisher and its Trusted Publishing
-policy are a one-time prerequisite, stated at the top of the workflow, along with the fallback for a
-first upload that `--oidc` does not accept.
+because the Marketplace accepts only major.minor.patch. The publisher `idfkit` and its Trusted
+Publishing policy exist, as the top of the workflow records. A failed `publish-vsix` is repaired by
+rerunning that job, which publishes the VSIX already attached to the release.
 
 ## CI
 
