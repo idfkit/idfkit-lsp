@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+The VS Code extension is now packaged with the language service it needs, published to the Visual
+Studio Marketplace, and no longer starts the source server on an interpreter that cannot run it.
+The minimum versions rise to VS Code 1.90 and Node 20. Neither server gains or loses a capability.
+
 ### Added
 
 - The README opens with the idfkit identity header at `identity-2026.5`: the mark, the
@@ -42,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and how to install it before the capability tables. Development material moved to
   `CONTRIBUTING.md`.
 - `make install` refuses a `server/uv.lock` that is out of date rather than rewriting it.
+- The source server depends on `idfkit` 1.2.0 (previously 1.1.1) (#31).
 - The minimum VS Code version is now 1.90 (previously 1.86). VS Code 1.90 is the first release on
   Electron 29, whose Node 20 runtime is the one the model server runs on by default. VS Code 1.86
   to 1.89 run Node 18, which the `engines.node` of the idfkit packages the model server depends
@@ -162,7 +169,8 @@ The first release, published on GitHub with a VS Code extension.
   subscripts, method calls and loops.
 - An "Open Documentation" command in the VS Code extension.
 
-[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.1.0...v0.2.0
