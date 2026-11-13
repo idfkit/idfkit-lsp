@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (idfkit-plugin): `release.yml` calls `notify-dependents.yml` after the PyPI job, as idfkit-mcp's
   release does. Nothing called it before, so v0.5.0 and v0.5.1 were never offered and the plugin
   kept `idfkit-lsp==0.4.0`. A prerelease is not offered.
+- The offer names the release that sent it: `notify-dependents.yml` passes `offered_by`
+  (`idfkit-lsp 0.5.1`) to each dependent's `bump-idfkit.yml`, whose pull request is then titled
+  for the server it moves rather than for idfkit-mcp.
 
 ## [0.5.1] - 2026-11-13
 
