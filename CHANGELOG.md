@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-13
+
+The VS Code extension gains its Marketplace icon. Neither server changes; the Python and npm
+packages are republished at this version only because the three artifacts share one tag.
+
 ### Added
 
 - The VS Code extension carries an icon on the Marketplace listing: `marks/tile.png` from
@@ -175,6 +180,7 @@ The first release, published on GitHub with a VS Code extension.
 - An "Open Documentation" command in the VS Code extension.
 
 [unreleased]: https://github.com/idfkit/idfkit-lsp/compare/v0.5.0...HEAD
+[0.5.1]: https://github.com/idfkit/idfkit-lsp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/idfkit/idfkit-lsp/compare/v0.2.0...v0.3.0
