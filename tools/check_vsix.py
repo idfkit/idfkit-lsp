@@ -12,12 +12,15 @@ the unpacked extension, the way the client starts it, and holds what it advertis
 cannot load the language service still starts and answers ``initialize``, but advertises none of the
 model-text answers, so the comparison is what detects a VSIX without the language service. A server
 that advertises them all but warns on start cannot resolve what they are answered from, and fails
-too. Run by CI on every change.
+too. The script the bundled language client runs to force-stop a server must sit beside the client
+bundle and be executable, because that client reads it from the bundle's own directory. Run by CI on
+every change.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -34,6 +37,7 @@ if TYPE_CHECKING:
 BUNDLE = "model-server/dist/main.js"
 DECLARATION = "capabilities.json"
 MANIFEST = "package.json"
+TERMINATE_SCRIPT = "terminateProcess.sh"
 
 # Which entry of an `initialize` result announces which model-text request. Protocol knowledge, not
 # knowledge of a model. The declaration decides which of them are expected.
@@ -71,16 +75,35 @@ def _check_location(root: Path, extension: Path, report: Report) -> None:
             )
 
 
+def _check_terminate_script(extension: Path, entry: str, report: Report) -> None:
+    """The script ``vscode-languageclient`` runs to force-stop a server, where that code looks for it.
+
+    The library resolves the script from ``__dirname``, which bundling makes the directory of the
+    client bundle, and starts it directly, so a script without its executable bit fails as a missing
+    one does. On Windows the library uses ``taskkill`` instead, and no VSIX is packaged there.
+    """
+    script = (extension / entry).parent / TERMINATE_SCRIPT
+    where = script.relative_to(extension)
+    if not script.is_file():
+        report.fail(extension, f"the VSIX does not carry {where}, so a forced stop fails")
+    elif not os.access(script, os.X_OK):
+        report.fail(extension, f"{where} is not executable, so a forced stop fails")
+
+
 def _check_files(root: Path, extension: Path, report: Report) -> None:
     """The files the editor and the client read at activation, each at the path it is read from."""
     required = [BUNDLE]
+    entry: str | None = None
     if (extension / MANIFEST).is_file():
-        required.append(str(read_json(extension / MANIFEST)["main"]))
+        entry = str(read_json(extension / MANIFEST)["main"])
+        required.append(entry)
     else:
         report.fail(extension, f"the VSIX does not carry {MANIFEST}")
     for relative in required:
         if not (extension / relative).is_file():
             report.fail(extension, f"the VSIX does not carry {relative}")
+    if entry is not None and (extension / entry).is_file():
+        _check_terminate_script(extension, entry, report)
     packaged = extension / DECLARATION
     if not packaged.is_file():
         report.fail(extension, f"the VSIX does not carry {DECLARATION}")

@@ -44,6 +44,48 @@ const handles: ServerHandle[] = [];
 
 let source: SourceServer | undefined;
 
+/**
+ * How long to wait after a stop that fails. vscode-languageclient 9.0.1 force-stops the server 2000 ms
+ * after the failed stop, a delay it does not expose, and this is that time plus a margin for the
+ * process to be gone.
+ */
+const FORCED_STOP_WAIT_MS = 2500;
+
+function waitForForcedStop(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, FORCED_STOP_WAIT_MS));
+}
+
+/**
+ * The stop in progress for each client. A second caller joins it, because a client already marked
+ * stopped reports success to a new stop, and that caller would otherwise proceed inside the wait.
+ */
+const stopping = new Map<LanguageClient, Promise<void>>();
+
+/**
+ * Stop a server, and wait for the language client's forced stop when the stop fails.
+ *
+ * A server force-stopped after the client has started again closes a connection the client no longer
+ * uses, but the client handles that close as the loss of its current connection: it abandons the
+ * server it just started, still running, and starts another. An extension host that exits first
+ * never runs the forced stop at all. Both are avoided by waiting here.
+ *
+ * Every rejection waits, not only a stop that timed out. A client that is still starting, or whose
+ * start failed, also rejects, and the language client schedules the forced stop of the process it
+ * spawned regardless.
+ */
+function stopServer(client: LanguageClient): Promise<void> {
+    const inProgress = stopping.get(client);
+    if (inProgress) {
+        return inProgress;
+    }
+    const stopped = client
+        .stop()
+        .catch(waitForForcedStop)
+        .finally(() => stopping.delete(client));
+    stopping.set(client, stopped);
+    return stopped;
+}
+
 interface DocumentKind {
     readonly language_id: string;
     readonly extensions: readonly string[];
@@ -273,7 +315,15 @@ class SourceClient extends LanguageClient {
             await super.stop(timeout);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            this.outputChannel.appendLine(`The source server did not stop cleanly: ${msg}`);
+            try {
+                this.outputChannel.appendLine(`The source server did not stop cleanly: ${msg}`);
+            } catch {
+                // The channel is closed while the extension host exits, which is when the wait
+                // below matters most.
+            }
+            // A replaced client cannot mistake the forced stop for the loss of its next server, but
+            // an extension host that exits first never runs the forced stop at all.
+            await waitForForcedStop();
         }
     }
 }
@@ -555,27 +605,30 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand("idfkitLsp.restartServer", async () => {
-            // One server failing to come back must not leave the other stopped, so each restart
-            // is reported where that server's output already is and the loop carries on.
-            for (const handle of handles) {
-                try {
-                    await handle.client.stop();
-                } catch {
-                    // The client may be in a starting or start-failed state.
-                }
-                try {
-                    await handle.client.start();
-                } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    handle.outputChannel.appendLine(
-                        `[ERROR] ${handle.id} server failed to restart: ${msg}`
-                    );
-                    void vscode.window.showErrorMessage(
-                        `The idfkit ${handle.id} server failed to restart: ${msg}`
-                    );
-                }
-            }
-            await source?.restart();
+            // One server failing to come back must not leave the other stopped or waiting, so the
+            // servers restart independently and each restart is reported where that server's output
+            // already is.
+            await Promise.all([
+                ...handles.map(async (handle) => {
+                    await stopServer(handle.client);
+                    // Deactivation empties the list, and nothing would stop a server started after it.
+                    if (!handles.includes(handle)) {
+                        return;
+                    }
+                    try {
+                        await handle.client.start();
+                    } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        handle.outputChannel.appendLine(
+                            `[ERROR] ${handle.id} server failed to restart: ${msg}`
+                        );
+                        void vscode.window.showErrorMessage(
+                            `The idfkit ${handle.id} server failed to restart: ${msg}`
+                        );
+                    }
+                }),
+                source?.restart(),
+            ]);
         })
     );
 
@@ -622,11 +675,11 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): Thenable<void> | undefined {
-    const stopping = handles.map((handle) => handle.client.stop().catch(() => undefined));
+    const stops = handles.map((handle) => stopServer(handle.client));
     handles.length = 0;
     if (source) {
-        stopping.push(source.stop());
+        stops.push(source.stop());
         source = undefined;
     }
-    return Promise.all(stopping).then(() => undefined);
+    return Promise.all(stops).then(() => undefined);
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -15,6 +16,7 @@ from ..check_vsix import (
     DECLARATION,
     MANIFEST,
     MODEL_PROVIDERS,
+    TERMINATE_SCRIPT,
     check_advertisement,
     check_extension,
 )
@@ -23,6 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CLIENT_ENTRY = "client/dist/extension.js"
+CLIENT_SCRIPT = f"client/dist/{TERMINATE_SCRIPT}"
 GUARD_MESSAGE = "the language service could not be resolved here"
 ALL_PROVIDERS = tuple(MODEL_PROVIDERS.values())
 
@@ -79,6 +82,8 @@ def _tree(tmp_path: Path, *, providers: tuple[str, ...] = ALL_PROVIDERS, guard: 
     (extension / "client" / "dist").mkdir(parents=True)
     (extension / MANIFEST).write_text(json.dumps({"main": f"./{CLIENT_ENTRY}"}), encoding="utf-8")
     (extension / CLIENT_ENTRY).write_text("", encoding="utf-8")
+    (extension / CLIENT_SCRIPT).write_text("", encoding="utf-8")
+    (extension / CLIENT_SCRIPT).chmod(0o755)
     (extension / DECLARATION).write_bytes(declaration)
     (extension / BUNDLE).parent.mkdir(parents=True)
     (extension / BUNDLE).write_text(
@@ -147,13 +152,35 @@ def test_a_server_that_warns_on_start_fails_though_it_advertises_everything(
     assert GUARD_MESSAGE in failures[0]
 
 
-@pytest.mark.parametrize("missing", [BUNDLE, CLIENT_ENTRY, DECLARATION, MANIFEST])
+@pytest.mark.parametrize("missing", [BUNDLE, CLIENT_ENTRY, CLIENT_SCRIPT, DECLARATION, MANIFEST])
 def test_a_missing_file_fails_without_starting_anything(tmp_path: Path, missing: str) -> None:
     tree = _tree(tmp_path)
     (tree.extension / missing).unlink()
     failures = _failures(tree)
     assert len(failures) == 1
     assert missing in failures[0]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no executable bit to remove")
+def test_a_terminate_script_that_is_not_executable_fails(tmp_path: Path) -> None:
+    tree = _tree(tmp_path)
+    (tree.extension / CLIENT_SCRIPT).chmod(0o644)
+    failures = _failures(tree)
+    assert len(failures) == 1
+    assert "not executable" in failures[0]
+
+
+def test_the_terminate_script_is_required_beside_the_client_bundle(tmp_path: Path) -> None:
+    tree = _tree(tmp_path)
+    elsewhere = tree.extension / "elsewhere.js"
+    elsewhere.write_text("", encoding="utf-8")
+    (tree.extension / MANIFEST).write_text(
+        json.dumps({"main": f"./{elsewhere.name}"}), encoding="utf-8"
+    )
+    failures = _failures(tree)
+    assert len(failures) == 1
+    assert TERMINATE_SCRIPT in failures[0]
+    assert CLIENT_SCRIPT not in failures[0]
 
 
 def test_the_entry_point_is_read_from_the_packaged_manifest(tmp_path: Path) -> None:
