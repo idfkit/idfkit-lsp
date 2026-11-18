@@ -784,6 +784,18 @@ class TestAnswers:
             )
             return findings
 
+    def test_answers_findings_are_published_to_a_client_that_cannot_request_them(
+        self, model_server: ProtocolClient, model_kind: DocumentKind
+    ) -> None:
+        """The fallback delivery, for the session's client, which advertises no diagnostic pull."""
+        with _opened(model_server, model_kind, "model-server/published", _BAD_FIELD) as sample:
+            published = model_server.await_notification(_PUBLISHED_DIAGNOSTICS, uri=sample.uri)
+            wanted = sample.span_of(_BAD_VALUE)
+        findings = [Diagnostic.from_protocol(item) for item in published.params["diagnostics"]]
+        assert any(finding.range == wanted for finding in findings), (
+            f"no published finding selects {_BAD_VALUE!r}: {findings}"
+        )
+
     def test_answers_a_bad_field_is_selected_character_for_character(
         self, model_server: ProtocolClient, model_kind: DocumentKind
     ) -> None:

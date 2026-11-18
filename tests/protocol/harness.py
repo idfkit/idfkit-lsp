@@ -138,6 +138,14 @@ class Notification:
     method: str
     params: Any = None
 
+    @property
+    def uri(self) -> str | None:
+        """The document this message is about, if it is about one."""
+        if not isinstance(self.params, dict):
+            return None
+        uri = self.params.get("uri")
+        return uri if isinstance(uri, str) else None
+
 
 def _read_message(stream: IO[bytes]) -> dict[str, Any] | None:
     """Read one framed protocol message, blocking until it arrives. ``None`` at end of output.
@@ -353,16 +361,20 @@ class ProtocolClient:
     def exit(self) -> None:
         self.notify("exit", None)
 
-    def await_notification(self, method: str, timeout: float = DEFAULT_TIMEOUT) -> Notification:
+    def await_notification(
+        self, method: str, timeout: float = DEFAULT_TIMEOUT, *, uri: str | None = None
+    ) -> Notification:
         """Wait for one unprompted message, such as published diagnostics.
 
         Consuming, and it searches what has already arrived first: a notification a server sent
         while an earlier request was in flight is still the notification the test is waiting for.
+        Servers are shared by the session, so what has already arrived can be about another test's
+        document: ``uri`` restricts the wait to messages about one document.
         """
         deadline = time.monotonic() + timeout
         while True:
             for index, notification in enumerate(self._notifications):
-                if notification.method == method:
+                if notification.method == method and (uri is None or notification.uri == uri):
                     return self._notifications.pop(index)
             if not self._pump(deadline):
                 raise ProtocolTimeout(self._unanswered(f"a {method} notification", timeout))

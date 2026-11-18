@@ -24,9 +24,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import pytest
-
-from .conftest import REPOSITORY_ROOT
+from .conftest import REPOSITORY_ROOT, skip_or_fail
 from .test_declaration import ProbeDocument, ask, opened
 
 if TYPE_CHECKING:
@@ -59,14 +57,14 @@ def _unanswered(client: ProtocolClient, declared: ServerDeclaration) -> list[str
 def _client_text() -> str:
     """Everything the client is written in, as one body of text to look for request names in."""
     if not CLIENT_SOURCE.is_dir():
-        pytest.skip(f"{CLIENT_SOURCE} does not exist, so there is no client to read")
+        skip_or_fail(f"{CLIENT_SOURCE} does not exist, so there is no client to read")
     parts = [
         path.read_text(encoding="utf-8")
         for path in sorted(CLIENT_SOURCE.rglob("*"))
         if path.is_file() and path.suffix in _CLIENT_SUFFIXES
     ]
     if not parts:
-        pytest.skip(f"{CLIENT_SOURCE} holds no source to read")
+        skip_or_fail(f"{CLIENT_SOURCE} holds no source to read")
     return "\n".join(parts)
 
 

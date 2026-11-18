@@ -60,11 +60,17 @@ make check-knowledge   # no schema table, grammar pattern, or model-text offset 
 
 make test              # Source server unit tests
 make test-model        # Model server unit tests
-make test-protocol     # Both servers over the protocol, no editor (ARGS=... passes through)
+make test-protocol     # Build the model server, then drive both servers, no editor, failing on anything missing (ARGS=... passes through)
 make bench-protocol    # An answer at a cursor, measured at the protocol boundary
 make build             # Bundle the client and the model server
+make build-model       # Bundle the model server alone
 make package           # Package the VS Code extension (VSIX=<path> names the output)
 ```
+
+The protocol suite skips what is missing only in a direct `pytest` run from a checkout, and the skip
+names it. `make test-protocol` and `ci.yml` set `REQUIRE_FULL_SUITE`, which turns those skips into
+failures, so a passing gate shows the tests ran. A skip for a capability the declaration records as
+absent stays a skip.
 
 Single tests:
 
