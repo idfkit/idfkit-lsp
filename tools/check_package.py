@@ -20,7 +20,7 @@ from pathlib import Path
 
 from tests.protocol.harness import ProtocolClient, ProtocolError, ServerDescription
 
-from ._common import Report, read_json, repository_root
+from ._common import Report, has_source_map_comment, read_json, repository_root
 
 MANIFEST = "model-server/package.json"
 
@@ -55,6 +55,10 @@ def _check_tarball(root: Path, tarball: Path, report: Report) -> None:
                     "dist/capabilities.json differs from the root capabilities.json, so the "
                     "published server would advertise from a stale declaration",
                 )
+        if "package/dist/main.js" in members:
+            bundle = archive.extractfile("package/dist/main.js")
+            if bundle is None or has_source_map_comment(bundle.read()):
+                report.fail(tarball, "dist/main.js names a source map the package does not carry")
 
 
 def _check_command(installed: Path, name: str, command: str, report: Report) -> None:

@@ -337,6 +337,21 @@ export function ownManifest(): Manifest | undefined {
 
 const require = createRequire(import.meta.url);
 
+/** Written by `build.mjs` into the bundle as JSON text, and undefined when this runs unbundled. */
+declare const __BUNDLED_LEVELS__: string | undefined;
+
+/**
+ * The level of each library compiled into this bundle, read from that library's installed manifest
+ * when the bundle was built.
+ *
+ * Only this states what is running. A compiled-in library has no manifest in a VSIX, and in an npm
+ * install the manifest beside the bundle describes a copy the bundle never loads.
+ */
+const BUNDLED_LEVELS: Readonly<Record<string, string>> =
+  typeof __BUNDLED_LEVELS__ === 'undefined'
+    ? {}
+    : asRecord(JSON.parse(__BUNDLED_LEVELS__) as unknown);
+
 /**
  * The level a library actually resolved to, read from the installed package's own manifest.
  *
@@ -374,11 +389,14 @@ export function levelOf(
  * The names come from this server's own manifest rather than from a list in this file, so a
  * dependency added or renamed is reported without anyone editing the report. A development
  * dependency is not reported: a test runner is installed, and a running server does not import it.
+ * A library compiled into the bundle reports the level compiled in, and any other library the level
+ * it resolves to now.
  */
 export function versionReport(
   serverId: string,
   manifest: Manifest | undefined = ownManifest(),
   resolveFrom: (id: string) => string = require.resolve,
+  bundled: Readonly<Record<string, string>> = BUNDLED_LEVELS,
 ): VersionReport {
   const names = [
     ...new Set([
@@ -389,7 +407,7 @@ export function versionReport(
   return {
     server_id: serverId,
     version: manifest?.version ?? null,
-    libraries: names.map((name) => ({ name, level: levelOf(name, resolveFrom) })),
+    libraries: names.map((name) => ({ name, level: bundled[name] ?? levelOf(name, resolveFrom) })),
   };
 }
 

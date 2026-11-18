@@ -80,6 +80,16 @@ The minimum versions rise to VS Code 1.90 and Node 20. Neither server gains or l
 
 ### Fixed
 
+- The client no longer passes `--stdio` to the model server twice. `TransportKind.stdio` adds the
+  argument, so it is no longer also written in `args`.
+- `idfkit-lsp/versions` from the model server no longer reports `null` for `vscode-languageserver`
+  and `vscode-languageserver-textdocument` in a VSIX. Both are compiled into the bundle, so the build
+  now records each level from the installed manifest and the server reports that level. An npm
+  install previously reported the copy in `node_modules`, which the bundle does not load.
+- The bundles in the VSIX and the npm package no longer end in a `sourceMappingURL` comment naming a
+  map neither ships. `tools/check_vsix.py` and `tools/check_package.py` now fail on such a comment.
+  `make build` and `npm run watch` keep the linked source map for debugging a checkout. `make package`
+  and `npm pack` overwrite the local bundles without it, so run `make build` again before debugging.
 - The packaged VS Code extension now carries the language service. A VSIX built with `vsce package`
   contained no `@idfkit` package, so the model server could not resolve `@idfkit/idfkit` and
   advertised no model text capability. The prepublish step now installs the locked dependencies of
